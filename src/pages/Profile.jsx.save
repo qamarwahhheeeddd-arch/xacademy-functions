@@ -1,0 +1,69 @@
+
+import { useState } from "react";
+
+export default function Profile() {
+  const [form, setForm] = useState({
+    name: "",
+    fatherName: "",
+    address: "",
+    country: "",
+    phone: "",
+    class: "",
+    school: "",
+    city: "",
+    age: "",
+    status: "",
+    gender: "",
+    profilePic: null,
+    idFront: null,
+    idBack: null,
+    flag: ""
+  });
+
+  function handleFileChange(e, field) {
+    setForm({ ...form, [field]: e.target.files[0] });
+  }
+
+  return (
+    <div className="profile-page">
+      <h2>👤 Your Profile</h2>
+      <input placeholder="Full Name" />
+      <input placeholder="Father's Name" />
+      <input placeholder="Home Address" />
+      <select>
+        <option>Select Country</option>
+        <option>UAE</option>
+        <option>Pakistan</option>
+        <option>India</option>
+      </select>
+      <input placeholder="Phone Number" />
+      <input placeholder="Class" />
+      <input placeholder="School Name" />
+      <input placeholder="City" />
+      <input placeholder="Age" />
+      <select>
+        <option>Status</option>
+        <option>Married</option>
+        <option>Unmarried</option>
+      </select>
+      <select>
+        <option>Gender</option>
+        <option>Male</option>
+        <option>Female</option>
+      </select>
+      <label>Upload Profile Picture</label>
+      <input type="file" onChange={(e) => handleFileChange(e, "profilePic")} />
+      <label>Upload ID Card Front</label>
+      <input type="file" onChange={(e) => handleFileChange(e, "idFront")} />
+      <label>Upload ID Card Back</label>
+      <input type="file" onChange={(e) => handleFileChange(e, "idBack")} />
+      <label>Select Country Flag</label>
+      <select>
+        <option>🇦🇪 UAE</option>
+        <option>🇵🇰 Pakistan</option>
+        <option>🇮🇳 India</option>
+      </select>
+      <button>Save Profile</button>
+    </div>
+  );
+}

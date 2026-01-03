@@ -1,0 +1,68 @@
+.exam-container {
+  background: #0f0f0f;
+  min-height: 100vh;
+  padding: 20px;
+  color: #e5e7eb;
+  font-family: 'Segoe UI', sans-serif;
+}
+
+.exam-title {
+  text-align: center;
+  color: #a855f7;
+  margin-bottom: 20px;
+}
+
+.timer {
+  text-align: center;
+  font-size: 18px;
+  margin-bottom: 20px;
+  color: #fdd835;
+}
+
+.questions-box {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.question-card {
+  background: #1a1a1a;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid #4c1d95;
+}
+
+.question-card h3 {
+  margin-bottom: 10px;
+}
+
+.option {
+  display: block;
+  margin: 6px 0;
+  font-size: 15px;
+}
+
+.submit-btn {
+  width: 100%;
+  padding: 14px;
+  margin-top: 20px;
+  background: #a855f7;
+  border: none;
+  border-radius: 10px;
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.submit-btn:hover {
+  background: #9333ea;
+}
+
+.result-box {
+  text-align: center;
+  margin-top: 50px;
+  background: #1a1a1a;
+  padding: 30px;
+  border-radius: 16px;
+  border: 1px solid #4c1d95;
+}
