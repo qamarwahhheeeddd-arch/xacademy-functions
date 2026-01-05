@@ -24,7 +24,7 @@ const firebaseConfig = {
 };
 
 // 👉 Initialize Firebase
-const app = initializeApp(firebaseConfig);
+export const app = initializeApp(firebaseConfig);   // ⭐ REQUIRED EXPORT ⭐
 
 export const auth = getAuth(app);
 setPersistence(auth, browserLocalPersistence);

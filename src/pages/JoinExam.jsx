@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { joinExamRoom, listenExamRoom } from "../services/examRoomService";
+import { joinExamRoom } from "../services/examRoomService";
 
 export default function JoinExam() {
   const location = useLocation();
@@ -10,7 +10,6 @@ export default function JoinExam() {
   const mode = location.state?.mode;
 
   const [loading, setLoading] = useState(true);
-  const [roomId, setRoomId] = useState(null);
 
   function getOrCreateUserId() {
     let id = localStorage.getItem("examUserId");
@@ -27,29 +26,25 @@ export default function JoinExam() {
       return;
     }
 
-    async function join() {
+    async function joinRoom() {
       try {
         const userId = getOrCreateUserId();
-        const rid = await joinExamRoom(paperType, userId, mode);
-        setRoomId(rid);
 
-        const unsub = listenExamRoom(rid, (data) => {
-          if (data?.status === "started") {
-            unsub();
-            navigate("/exam", {
-              state: { roomId: rid, paperType, mode },
-            });
-          }
+        // Backend call → returns roomId
+        const roomId = await joinExamRoom(paperType, userId, mode);
+
+        // Go to waiting page
+        navigate("/waiting", {
+          state: { roomId, paperType, mode }
         });
 
-        setLoading(false);
       } catch (err) {
-        alert("Join failed");
+        alert("Error joining room");
         navigate("/");
       }
     }
 
-    join();
+    joinRoom();
   }, []);
 
   return (
@@ -57,21 +52,14 @@ export default function JoinExam() {
       style={{
         minHeight: "100vh",
         background: "#000",
-        padding: "20px",
         color: "white",
-        textAlign: "center",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        fontSize: 20
       }}
     >
-      <h1 style={{ color: "#FFD700" }}>Joining Exam...</h1>
-
-      <p>Paper: {paperType}</p>
-      <p>Mode: {mode} Students</p>
-
-      {roomId && <p>Room ID: {roomId}</p>}
-
-      <p style={{ marginTop: 40, opacity: 0.7 }}>
-        {loading ? "Joining..." : "Waiting for other students..."}
-      </p>
+      Joining exam room...
     </div>
   );
 }
