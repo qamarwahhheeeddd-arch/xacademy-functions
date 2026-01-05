@@ -6,12 +6,17 @@ export default function JoinExam() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const paperType = location.state?.paperType;
+  // ExamPage.jsx ke mutabiq paperType localStorage se
+  const paperType = localStorage.getItem("selectedCourse");
+
+  // Mode ModeSelect.jsx se aata hai
   const mode = location.state?.mode;
 
   const [loading, setLoading] = useState(true);
   const [roomId, setRoomId] = useState(null);
+  const [error, setError] = useState(null);
 
+  // EXACT same userId logic as ExamPage.jsx
   function getOrCreateUserId() {
     let id = localStorage.getItem("examUserId");
     if (!id) {
@@ -23,13 +28,21 @@ export default function JoinExam() {
 
   async function join() {
     try {
+      setLoading(true);
+      setError(null);
+
       const userId = getOrCreateUserId();
 
+      // Backend call
       const rid = await joinExamRoom(paperType, userId, mode);
       setRoomId(rid);
 
-      listenExamRoom(rid, (data) => {
+      // Listen to room status
+      const unsubscribe = listenExamRoom(rid, (data) => {
+        if (!data) return;
+
         if (data.status === "started") {
+          unsubscribe(); // cleanup listener
           navigate("/exam", {
             state: { roomId: rid, paperType, mode },
           });
@@ -38,13 +51,23 @@ export default function JoinExam() {
 
       setLoading(false);
     } catch (err) {
-      console.error(err);
+      console.error("JoinExam error:", err);
+      setError("Unable to join exam. Please try again.");
       alert("Join failed");
+      setLoading(false);
     }
   }
 
   useEffect(() => {
-    if (paperType && mode) join();
+    if (!paperType) {
+      setError("Paper type missing");
+      return;
+    }
+    if (!mode) {
+      setError("Mode missing");
+      return;
+    }
+    join();
   }, []);
 
   return (
@@ -59,8 +82,18 @@ export default function JoinExam() {
     >
       <h1 style={{ color: "#FFD700" }}>Join Exam</h1>
 
-      <p>Paper: <b style={{ color: "#FFD700" }}>{paperType}</b></p>
-      <p>Mode: <b style={{ color: "#FFD700" }}>{mode} Students</b></p>
+      <p>
+        Paper: <b style={{ color: "#FFD700" }}>{paperType}</b>
+      </p>
+      <p>
+        Mode: <b style={{ color: "#FFD700" }}>{mode} Students</b>
+      </p>
+
+      {error && (
+        <p style={{ marginTop: "20px", color: "red", opacity: 0.8 }}>
+          {error}
+        </p>
+      )}
 
       {loading ? (
         <p style={{ marginTop: "40px", opacity: 0.7 }}>Joining exam...</p>
