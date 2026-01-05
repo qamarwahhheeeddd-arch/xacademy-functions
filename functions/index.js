@@ -3,6 +3,7 @@
 // ===============================
 const { onRequest } = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
+const cors = require("cors");
 
 // Initialize Firebase Admin once
 if (!admin.apps.length) admin.initializeApp();
@@ -11,7 +12,7 @@ const db = admin.firestore();
 // ===============================
 //  JOIN EXAM ROOM (V3)
 // ===============================
-exports.joinExamRoomV3 = onRequest({ region: "us-central1" }, async (req, res) => {
+exports.joinExamRoomV3 = onRequest({ region: "us-central1" }, cors(), async (req, res) => {
   try {
     // Allow only POST
     if (req.method !== "POST") {
@@ -32,7 +33,9 @@ exports.joinExamRoomV3 = onRequest({ region: "us-central1" }, async (req, res) =
 
     const roomsCol = db.collection("examRooms");
 
-    // Find an existing waiting room
+    // ===============================
+    //  FIND EXISTING WAITING ROOM
+    // ===============================
     const qSnap = await roomsCol
       .where("paperType", "==", paperType)
       .where("maxStudents", "==", maxStudents)
