@@ -1,36 +1,42 @@
-import { doc, onSnapshot } from "firebase/firestore";
-import { db } from "../firebase";
+import { getFirestore, doc, onSnapshot } from "firebase/firestore";
+import { app } from "../firebase"; // make sure this exports initialized app
 
-export async function joinExamRoom(paperType, userId, mode) {
-  try {
-    const res = await fetch(
-      "https://joinexamroomv2-wgpqbabjv2q-uc.a.run.app",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          paperType,
-          studentId: userId,
-          mode,
-        }),
-      }
-    );
+const db = getFirestore(app);
 
-    const data = await res.json();
-    if (!data.success) throw new Error("Join failed");
+export async function joinExamRoom(paperType, studentId, mode) {
+  const res = await fetch("/joinExamRoomV3", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      paperType,
+      studentId,
+      mode,
+    }),
+  });
 
-    return data.roomId;
-  } catch (err) {
-    console.error("joinExamRoom error:", err);
-    throw err;
+  if (!res.ok) {
+    throw new Error("Network error joining room");
   }
+
+  const data = await res.json();
+  if (!data.success) {
+    throw new Error(data.error || "Join failed");
+  }
+
+  return data.roomId;
 }
 
 export function listenExamRoom(roomId, callback) {
   const ref = doc(db, "examRooms", roomId);
-
-  return onSnapshot(ref, (snap) => {
-    if (!snap.exists()) return;
+  const unsub = onSnapshot(ref, (snap) => {
+    if (!snap.exists()) {
+      callback(null);
+      return;
+    }
     callback(snap.data());
   });
+
+  return unsub;
 }

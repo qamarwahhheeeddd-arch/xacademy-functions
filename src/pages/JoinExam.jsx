@@ -6,18 +6,14 @@ export default function JoinExam() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Paper type ALWAYS from localStorage (ExamPage.jsx ke mutabiq)
-  const paperType = location.state?.paperType || localStorage.getItem("selectedCourse");
-
-
-  // Mode ALWAYS from ModeSelect.jsx
+  const paperType =
+    location.state?.paperType || localStorage.getItem("selectedCourse");
   const mode = location.state?.mode;
 
   const [loading, setLoading] = useState(true);
   const [roomId, setRoomId] = useState(null);
   const [error, setError] = useState(null);
 
-  // EXACT same userId logic as ExamPage.jsx
   function getOrCreateUserId() {
     let id = localStorage.getItem("examUserId");
     if (!id) {
@@ -34,16 +30,13 @@ export default function JoinExam() {
 
       const userId = getOrCreateUserId();
 
-      // Backend join
       const rid = await joinExamRoom(paperType, userId, mode);
       setRoomId(rid);
 
-      // Listen to room status
       const unsubscribe = listenExamRoom(rid, (data) => {
         if (!data) return;
-
         if (data.status === "started") {
-          unsubscribe(); // cleanup listener
+          unsubscribe();
           navigate("/exam", {
             state: { roomId: rid, paperType, mode },
           });
