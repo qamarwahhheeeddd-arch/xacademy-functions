@@ -2,13 +2,11 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
-
 import ExamUI from "../components/ExamUI";
 import BreakScreen from "../components/BreakScreen";
 import { useCamera } from "../hooks/useCamera";
 import { useAntiCheat } from "../hooks/useAntiCheat";
 import { useFaceDetection } from "../hooks/useFaceDetection";
-import { joinExamRoom, listenExamRoom } from "../services/examRoomService";
 
 // ====== IMPORT MCQ SETS ======
 // MEDICAL
@@ -93,21 +91,21 @@ function pickRandomFive(arr) {
   return shuffled.slice(0, Math.min(5, shuffled.length));
 }
 
-function getOrCreateUserId() {
-  let id = localStorage.getItem("examUserId");
-  if (!id) {
-    id = "user_" + Math.random().toString(36).slice(2, 10);
-    localStorage.setItem("examUserId", id);
-  }
-  return id;
-}
-
 // ====== COMPONENT ======
 export default function ExamPage() {
   const navigate = useNavigate();
   const location = useLocation();
-const mode = location.state?.mode || 2; // default 2 students
 
+  const paperType = location.state?.paperType;
+  const mode = location.state?.mode;
+  const roomId = location.state?.roomId;
+
+  // If missing data → redirect
+  useEffect(() => {
+    if (!paperType || !mode || !roomId) {
+      navigate("/");
+    }
+  }, []);
 
   // ===== STATES =====
   const [questions, setQuestions] = useState([]);
@@ -127,12 +125,6 @@ const mode = location.state?.mode || 2; // default 2 students
 
   const hasSubmittedRef = useRef(false);
 
-  // ===== ROOM STATES =====
-  const [roomId, setRoomId] = useState(null);
-  const [examStarted, setExamStarted] = useState(false);
-  const [roomLoading, setRoomLoading] = useState(true);
-  const [roomStatus, setRoomStatus] = useState("joining");
-
   // ===== ANTI‑CHEAT =====
   const handleMaxWarnings = useCallback(() => {
     endExam("warnings");
@@ -146,61 +138,11 @@ const mode = location.state?.mode || 2; // default 2 students
   // ===== FACE DETECTION =====
   useFaceDetection(videoRef, addWarning, !breakActive);
 
-  // ===== JOIN ROOM =====
-  useEffect(() => {
-    const course = localStorage.getItem("selectedCourse");
-    if (!course) {
-      alert("No course selected.");
-      navigate("/");
-      return;
-    }
-
-    const paperType =
-      course === "medical"
-        ? "medical"
-        : course === "engineering"
-        ? "engineering"
-        : "general";
-
-    const userId = getOrCreateUserId();
-    let unsub;
-
-    async function setupRoom() {
-      try {
-        setRoomLoading(true);
-        setRoomStatus("joining");
-
-        const rid = await joinExamRoom(paperType, userId, mode);
-
-        setRoomId(rid);
-        setRoomStatus("waiting");
-
-        unsub = listenExamRoom(rid, (data) => {
-          if (data.status === "started") {
-            setExamStarted(true);
-            setRoomStatus("started");
-          }
-        });
-      } catch (e) {
-        console.error("Room join error:", e);
-        alert("Error joining exam room");
-      } finally {
-        setRoomLoading(false);
-      }
-    }
-
-    setupRoom();
-    return () => unsub && unsub();
-  }, [navigate]);
-
   // ===== LOAD QUESTIONS =====
   useEffect(() => {
-    const course = localStorage.getItem("selectedCourse");
-    if (!course) return;
-
     let examSeq = [];
 
-    if (course === "medical") {
+    if (paperType === "medical") {
       const medSets = [
         medBiologyB1, medBiologyB2, medBiologyB3, medBiologyB4, medBiologyB5,
         medChemistryCh1, medChemistryCh2, medChemistryCh3, medChemistryCh4, medChemistryCh5,
@@ -214,7 +156,7 @@ const mode = location.state?.mode || 2; // default 2 students
       medNewsSets.forEach((set) => examSeq = examSeq.concat(pickRandomFive(set)));
     }
 
-    if (course === "engineering") {
+    if (paperType === "engineering") {
       const engSets = [
         engEnglishE1, engEnglishE2, engEnglishE3, engEnglishE4, engEnglishE5,
         engComputerC1, engComputerC2, engComputerC3, engComputerC4, engComputerC5,
@@ -229,9 +171,7 @@ const mode = location.state?.mode || 2; // default 2 students
     }
 
     setQuestions(examSeq);
-    setCurrentIndex(0);
-    setQuestionTimer(QUESTION_TIME_SECONDS);
-  }, [navigate]);
+  }, []);
 
   // ===== TIMER RESET =====
   useEffect(() => {
@@ -360,33 +300,7 @@ const mode = location.state?.mode || 2; // default 2 students
 
   // ===== UI ORDER =====
 
-  // 1) WAITING FOR ROOM
-  if (roomLoading || !examStarted) {
-    return (
-      <div style={{
-        minHeight: "100vh",
-        background: "#0f172a",
-        color: "#e5e7eb",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "16px",
-        textAlign: "center",
-      }}>
-        <div>
-          <h2>Waiting for other students...</h2>
-          <p style={{ marginTop: 8 }}>
-            Paper type: <strong>{localStorage.getItem("selectedCourse")}</strong>
-          </p>
-          <p style={{ marginTop: 4 }}>
-            Status: {roomStatus === "joining" ? "Joining room" : "Waiting for group (4 students)"}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // 2) QUESTIONS LOADING
+  // QUESTIONS LOADING
   if (questions.length === 0) {
     return (
       <div style={{
@@ -404,7 +318,7 @@ const mode = location.state?.mode || 2; // default 2 students
   const heartsDisplay = "❤".repeat(hearts) + "♡".repeat(MAX_HEARTS - hearts);
   const warningsText = `Warnings: ${warnings}/${MAX_WARNINGS}`;
 
-  // 3) BREAK SCREEN
+  // BREAK SCREEN
   if (breakActive) {
     return (
       <BreakScreen
@@ -415,7 +329,7 @@ const mode = location.state?.mode || 2; // default 2 students
     );
   }
 
-  // 4) NORMAL EXAM UI
+  // NORMAL EXAM UI
   return (
     <ExamUI
       videoRef={videoRef}

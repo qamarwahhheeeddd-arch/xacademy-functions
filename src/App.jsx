@@ -17,9 +17,10 @@ import Home from "./pages/Home";
 import Profile from "./pages/Profile";
 import ExamPage from "./pages/ExamPage";
 
-// ⭐ ADD THESE TWO IMPORTS ⭐
+// ⭐ ADD THESE IMPORTS ⭐
 import ModeSelect from "./pages/ModeSelect";
 import JoinExam from "./pages/JoinExam";
+import WaitingPage from "./pages/WaitingPage";   // ⭐ REQUIRED ⭐
 
 // ---------------- PROTECTED ROUTE ----------------
 function ProtectedRoute({ children }) {
@@ -91,6 +92,16 @@ export default function App() {
         element={
           <ProtectedRoute>
             <JoinExam />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ⭐ NEW ROUTE ⭐ */}
+      <Route
+        path="/waiting"
+        element={
+          <ProtectedRoute>
+            <WaitingPage />
           </ProtectedRoute>
         }
       />
