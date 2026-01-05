@@ -7,7 +7,8 @@ export default function JoinExam() {
   const navigate = useNavigate();
 
   // Paper type ALWAYS from localStorage (ExamPage.jsx ke mutabiq)
-  const paperType = localStorage.getItem("selectedCourse");
+  const paperType = location.state?.paperType || localStorage.getItem("selectedCourse");
+
 
   // Mode ALWAYS from ModeSelect.jsx
   const mode = location.state?.mode;
