@@ -1,18 +1,18 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { FaUsers } from "react-icons/fa";
+import { useEffect } from "react";
 
 export default function ModeSelect() {
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const paperType = localStorage.getItem("selectedCourse");
+  const paperType = location.state?.paperType;
 
-  if (!paperType) {
-    return (
-      <div style={{ padding: 20, color: "white", background: "#000" }}>
-        <h2>No paper selected</h2>
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (!paperType) {
+      navigate("/");
+    }
+  }, [paperType, navigate]);
 
   const handleMode = (mode) => {
     navigate("/join", {

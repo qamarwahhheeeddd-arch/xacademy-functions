@@ -6,13 +6,11 @@ export default function JoinExam() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const paperType =
-    location.state?.paperType || localStorage.getItem("selectedCourse");
+  const paperType = location.state?.paperType;
   const mode = location.state?.mode;
 
   const [loading, setLoading] = useState(true);
   const [roomId, setRoomId] = useState(null);
-  const [error, setError] = useState(null);
 
   function getOrCreateUserId() {
     let id = localStorage.getItem("examUserId");
@@ -23,44 +21,34 @@ export default function JoinExam() {
     return id;
   }
 
-  async function join() {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const userId = getOrCreateUserId();
-
-      const rid = await joinExamRoom(paperType, userId, mode);
-      setRoomId(rid);
-
-      const unsubscribe = listenExamRoom(rid, (data) => {
-        if (!data) return;
-        if (data.status === "started") {
-          unsubscribe();
-          navigate("/exam", {
-            state: { roomId: rid, paperType, mode },
-          });
-        }
-      });
-
-      setLoading(false);
-    } catch (err) {
-      console.error("JoinExam error:", err);
-      setError("Unable to join exam. Please try again.");
-      alert("Join failed");
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
-    if (!paperType) {
-      setError("Paper type missing");
+    if (!paperType || !mode) {
+      navigate("/");
       return;
     }
-    if (!mode) {
-      setError("Mode missing");
-      return;
+
+    async function join() {
+      try {
+        const userId = getOrCreateUserId();
+        const rid = await joinExamRoom(paperType, userId, mode);
+        setRoomId(rid);
+
+        const unsub = listenExamRoom(rid, (data) => {
+          if (data?.status === "started") {
+            unsub();
+            navigate("/exam", {
+              state: { roomId: rid, paperType, mode },
+            });
+          }
+        });
+
+        setLoading(false);
+      } catch (err) {
+        alert("Join failed");
+        navigate("/");
+      }
     }
+
     join();
   }, []);
 
@@ -74,32 +62,16 @@ export default function JoinExam() {
         textAlign: "center",
       }}
     >
-      <h1 style={{ color: "#FFD700" }}>Join Exam</h1>
+      <h1 style={{ color: "#FFD700" }}>Joining Exam...</h1>
 
-      <p>
-        Paper: <b style={{ color: "#FFD700" }}>{paperType}</b>
+      <p>Paper: {paperType}</p>
+      <p>Mode: {mode} Students</p>
+
+      {roomId && <p>Room ID: {roomId}</p>}
+
+      <p style={{ marginTop: 40, opacity: 0.7 }}>
+        {loading ? "Joining..." : "Waiting for other students..."}
       </p>
-      <p>
-        Mode: <b style={{ color: "#FFD700" }}>{mode} Students</b>
-      </p>
-
-      {error && (
-        <p style={{ marginTop: "20px", color: "red", opacity: 0.8 }}>
-          {error}
-        </p>
-      )}
-
-      {loading ? (
-        <p style={{ marginTop: "40px", opacity: 0.7 }}>Joining exam...</p>
-      ) : (
-        <p style={{ marginTop: "40px", opacity: 0.7 }}>
-          Waiting for other students...
-        </p>
-      )}
-
-      {roomId && (
-        <p style={{ marginTop: "20px", opacity: 0.5 }}>Room ID: {roomId}</p>
-      )}
     </div>
   );
 }
