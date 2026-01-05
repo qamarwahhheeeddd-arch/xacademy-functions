@@ -5,8 +5,20 @@ export default function PaperSelect() {
   const navigate = useNavigate();
 
   const handleSelect = (course) => {
+    if (!course) return;
     localStorage.setItem("selectedCourse", course);
     navigate("/mode-select");
+  };
+
+  const buttonStyle = {
+    padding: "15px 30px",
+    background: "#111",
+    borderRadius: 10,
+    border: "1px solid #FFD700",
+    color: "white",
+    cursor: "pointer",
+    fontSize: 16,
+    width: "220px",
   };
 
   return (
@@ -17,46 +29,20 @@ export default function PaperSelect() {
         color: "white",
         padding: 20,
         textAlign: "center",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+        alignItems: "center",
       }}
     >
-      <h1 style={{ color: "#FFD700" }}>Select Paper</h1>
+      <h1 style={{ color: "#FFD700", marginBottom: 40 }}>Select Paper</h1>
 
-      <div
-        style={{
-          marginTop: 40,
-          display: "flex",
-          flexDirection: "column",
-          gap: 20,
-          alignItems: "center",
-        }}
-      >
-        <button
-          onClick={() => handleSelect("medical")}
-          style={{
-            padding: "15px 30px",
-            background: "#111",
-            borderRadius: 10,
-            border: "1px solid #FFD700",
-            color: "white",
-            cursor: "pointer",
-            fontSize: 16,
-          }}
-        >
+      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <button onClick={() => handleSelect("medical")} style={buttonStyle}>
           Medical Paper
         </button>
 
-        <button
-          onClick={() => handleSelect("engineering")}
-          style={{
-            padding: "15px 30px",
-            background: "#111",
-            borderRadius: 10,
-            border: "1px solid #FFD700",
-            color: "white",
-            cursor: "pointer",
-            fontSize: 16,
-          }}
-        >
+        <button onClick={() => handleSelect("engineering")} style={buttonStyle}>
           Engineering Paper
         </button>
       </div>
