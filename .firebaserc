@@ -1,5 +1,7 @@
 {
   "projects": {
     "default": "xacademy8-e52db"
-  }
+  },
+  "targets": {},
+  "etags": {}
 }
