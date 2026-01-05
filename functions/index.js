@@ -3,7 +3,6 @@
 // ===============================
 const { onRequest } = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
-const cors = require("cors");
 
 // Initialize Firebase Admin once
 if (!admin.apps.length) admin.initializeApp();
@@ -12,7 +11,18 @@ const db = admin.firestore();
 // ===============================
 //  JOIN EXAM ROOM (V3)
 // ===============================
-exports.joinExamRoomV3 = onRequest({ region: "us-central1" }, cors(), async (req, res) => {
+exports.joinExamRoomV3 = onRequest({ region: "us-central1" }, async (req, res) => {
+  // -------------------------------
+  // MANUAL CORS (Gen2 compatible)
+  // -------------------------------
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type");
+
+  if (req.method === "OPTIONS") {
+    return res.status(204).send("");
+  }
+
   try {
     // Allow only POST
     if (req.method !== "POST") {
@@ -20,7 +30,6 @@ exports.joinExamRoomV3 = onRequest({ region: "us-central1" }, cors(), async (req
     }
 
     const { paperType, studentId, mode } = req.body;
-    
     console.log("JOIN REQUEST:", { paperType, studentId, mode });
 
     // Validate input
@@ -34,9 +43,7 @@ exports.joinExamRoomV3 = onRequest({ region: "us-central1" }, cors(), async (req
 
     const roomsCol = db.collection("examRooms");
 
-    // ===============================
-    //  FIND EXISTING WAITING ROOM
-    // ===============================
+    // Find an existing waiting room
     const qSnap = await roomsCol
       .where("paperType", "==", paperType)
       .where("maxStudents", "==", maxStudents)
@@ -56,9 +63,7 @@ exports.joinExamRoomV3 = onRequest({ region: "us-central1" }, cors(), async (req
       }
     });
 
-    // ===============================
-    //  JOIN EXISTING ROOM
-    // ===============================
+    // JOIN EXISTING ROOM
     if (targetRoom) {
       const roomDoc = await targetRoom.get();
       const roomData = roomDoc.data();
@@ -87,9 +92,7 @@ exports.joinExamRoomV3 = onRequest({ region: "us-central1" }, cors(), async (req
       });
     }
 
-    // ===============================
-    //  CREATE NEW ROOM
-    // ===============================
+    // CREATE NEW ROOM
     const newRoomRef = roomsCol.doc();
 
     await newRoomRef.set({
@@ -108,7 +111,7 @@ exports.joinExamRoomV3 = onRequest({ region: "us-central1" }, cors(), async (req
     });
 
   } catch (err) {
-    console.error("joinExamRoomV3 error:", err);
+    console.error("joinExamRoomV3 error:", err.stack || err.message || err);
     return res.status(500).json({
       success: false,
       error: "Internal server error",
