@@ -1,6 +1,6 @@
 import { useNavigate, useLocation } from "react-router-dom";
-import { FaUsers } from "react-icons/fa";
 import { useEffect } from "react";
+import "./ModeSelect.css"; // optional for animation
 
 export default function ModeSelect() {
   const navigate = useNavigate();
@@ -27,51 +27,76 @@ export default function ModeSelect() {
     <div
       style={{
         minHeight: "100vh",
-        background: "#000",
-        padding: "20px",
-        color: "white",
-        textAlign: "center",
+        background: "#0f172a",
+        color: "#fff",
+        padding: "30px",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
       }}
     >
-      <h1 style={{ color: "#FFD700" }}>Select Mode</h1>
+      {/* Top Label */}
+      <div
+        style={{
+          background: "#FFD700",
+          color: "#000",
+          padding: "8px 16px",
+          borderRadius: "8px",
+          fontWeight: "bold",
+          marginBottom: "30px",
+        }}
+      >
+        {paperType === "medical" ? "🩺 Medical Paper" : "🛠️ Engineering Paper"}
+      </div>
 
-      <p style={{ opacity: 0.8 }}>
-        Paper: <b style={{ color: "#FFD700" }}>{paperType}</b>
-      </p>
+      <h2 style={{ marginBottom: "20px" }}>Select Mode</h2>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+      {/* Mode Options */}
+      <div style={{ display: "flex", gap: "30px", flexWrap: "wrap" }}>
+        {/* 2 Students */}
         <div
           onClick={() => handleMode(2)}
+          className="mode-card"
           style={{
-            background: "#111",
-            padding: "20px",
-            borderRadius: "10px",
+            background: "#1e293b",
+            border: "2px solid #FFD700",
+            borderRadius: "12px",
+            padding: "30px",
+            width: "220px",
+            textAlign: "center",
             cursor: "pointer",
-            border: "1px solid #FFD700",
-            display: "flex",
-            justifyContent: "center",
-            gap: "10px",
+            transition: "transform 0.3s ease",
           }}
+          onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.05)")}
+          onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
         >
-          <FaUsers color="#FFD700" size={22} />
-          <span>2 Students Mode</span>
+          <h3 style={{ color: "#FFD700" }}>👥 2 Students</h3>
+          <p style={{ marginTop: "10px", opacity: 0.8 }}>
+            Group of 2 students will start together.
+          </p>
         </div>
 
+        {/* 4 Students */}
         <div
           onClick={() => handleMode(4)}
+          className="mode-card"
           style={{
-            background: "#111",
-            padding: "20px",
-            borderRadius: "10px",
+            background: "#1e293b",
+            border: "2px solid #FFD700",
+            borderRadius: "12px",
+            padding: "30px",
+            width: "220px",
+            textAlign: "center",
             cursor: "pointer",
-            border: "1px solid #FFD700",
-            display: "flex",
-            justifyContent: "center",
-            gap: "10px",
+            transition: "transform 0.3s ease",
           }}
+          onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.05)")}
+          onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
         >
-          <FaUsers color="#FFD700" size={22} />
-          <span>4 Students Mode</span>
+          <h3 style={{ color: "#FFD700" }}>👨‍👩‍👧‍👦 4 Students</h3>
+          <p style={{ marginTop: "10px", opacity: 0.8 }}>
+            Group of 4 students will start together.
+          </p>
         </div>
       </div>
     </div>

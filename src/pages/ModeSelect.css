@@ -1,0 +1,6 @@
+.mode-card {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.mode-card:hover {
+  box-shadow: 0 0 10px #FFD700;
+}
