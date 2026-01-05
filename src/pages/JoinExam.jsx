@@ -6,8 +6,8 @@ export default function JoinExam() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const paperType = location.state?.paperType;
-  const mode = location.state?.mode;
+  const paperType = location.state?.paperType || localStorage.getItem("paperType");
+  const mode = Number(location.state?.mode || localStorage.getItem("mode"));
 
   const [loading, setLoading] = useState(true);
 
@@ -21,7 +21,11 @@ export default function JoinExam() {
   }
 
   useEffect(() => {
-    if (!paperType || !mode) {
+    console.log("🔍 DEBUG: JoinExam mounted");
+    console.log("🔍 DEBUG: Received state:", { paperType, mode });
+
+    if (!paperType || !mode || isNaN(mode)) {
+      console.log("❌ DEBUG: Missing paperType or mode → redirecting home");
       navigate("/");
       return;
     }
@@ -29,16 +33,24 @@ export default function JoinExam() {
     async function joinRoom() {
       try {
         const userId = getOrCreateUserId();
+        console.log("🔍 DEBUG: Generated userId:", userId);
 
-        // Backend call → returns roomId
+        console.log("🚀 DEBUG: Calling joinExamRoom with:", {
+          paperType,
+          userId,
+          mode
+        });
+
         const roomId = await joinExamRoom(paperType, userId, mode);
 
-        // Go to waiting page
+        console.log("✅ DEBUG: Room joined successfully:", roomId);
+
         navigate("/waiting", {
           state: { roomId, paperType, mode }
         });
 
       } catch (err) {
+        console.error("❌ DEBUG: joinExamRoom error:", err);
         alert("Error joining room");
         navigate("/");
       }
