@@ -20,6 +20,7 @@ exports.joinExamRoomV3 = onRequest({ region: "us-central1" }, cors(), async (req
     }
 
     const { paperType, studentId, mode } = req.body;
+    
     console.log("JOIN REQUEST:", { paperType, studentId, mode });
 
     // Validate input
