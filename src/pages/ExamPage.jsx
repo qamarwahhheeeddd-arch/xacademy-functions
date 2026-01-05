@@ -170,7 +170,8 @@ const mode = location.state?.mode || 2; // default 2 students
         setRoomLoading(true);
         setRoomStatus("joining");
 
-        const rid = await joinExamRoom(paperType, userId);
+        const rid = await joinExamRoom(paperType, userId, mode);
+
         setRoomId(rid);
         setRoomStatus("waiting");
 

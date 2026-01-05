@@ -6,10 +6,10 @@ export default function JoinExam() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // ExamPage.jsx ke mutabiq paperType localStorage se
+  // Paper type ALWAYS from localStorage (ExamPage.jsx ke mutabiq)
   const paperType = localStorage.getItem("selectedCourse");
 
-  // Mode ModeSelect.jsx se aata hai
+  // Mode ALWAYS from ModeSelect.jsx
   const mode = location.state?.mode;
 
   const [loading, setLoading] = useState(true);
@@ -33,7 +33,7 @@ export default function JoinExam() {
 
       const userId = getOrCreateUserId();
 
-      // Backend call
+      // Backend join
       const rid = await joinExamRoom(paperType, userId, mode);
       setRoomId(rid);
 
