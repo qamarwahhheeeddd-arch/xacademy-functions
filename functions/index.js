@@ -1,14 +1,3 @@
-const { onRequest } = require("firebase-functions/v2/https");
-const admin = require("firebase-admin");
-
-if (!admin.apps.length) admin.initializeApp();
-const db = admin.firestore();
-
-/*
-===========================================================
- JOIN EXAM ROOM V3 — Groups by paperType + mode
-===========================================================
-*/
 exports.joinExamRoomV3 = onRequest({ region: "us-central1" }, async (req, res) => {
   try {
     if (req.method !== "POST") {
@@ -16,13 +5,11 @@ exports.joinExamRoomV3 = onRequest({ region: "us-central1" }, async (req, res) =
     }
 
     const { paperType, studentId, mode } = req.body;
+    console.log("JOIN REQUEST:", { paperType, studentId, mode });
 
     const maxStudents = Number(mode);
-
-    if (!paperType || !studentId || !maxStudents) {
-      return res
-        .status(400)
-        .json({ success: false, error: "Missing fields" });
+    if (!paperType || !studentId || !mode || isNaN(maxStudents) || maxStudents <= 0) {
+      return res.status(400).json({ success: false, error: "Missing or invalid fields" });
     }
 
     const roomsCol = db.collection("examRooms");
@@ -37,7 +24,7 @@ exports.joinExamRoomV3 = onRequest({ region: "us-central1" }, async (req, res) =
 
     qSnap.forEach((docSnap) => {
       const data = docSnap.data();
-      const students = Array.isArray(data.students) ? data.students : [];
+      const students = Array.isArray(data.students) ? data.students.filter(Boolean) : [];
       if (students.length < maxStudents) {
         targetRoom = docSnap.ref;
       }
@@ -47,7 +34,7 @@ exports.joinExamRoomV3 = onRequest({ region: "us-central1" }, async (req, res) =
       const roomDoc = await targetRoom.get();
       const roomData = roomDoc.data();
       const students = Array.isArray(roomData.students)
-        ? roomData.students
+        ? roomData.students.filter(Boolean)
         : [];
 
       if (!students.includes(studentId)) {
@@ -89,8 +76,6 @@ exports.joinExamRoomV3 = onRequest({ region: "us-central1" }, async (req, res) =
     });
   } catch (err) {
     console.error("joinExamRoomV3 error:", err);
-    return res
-      .status(500)
-      .json({ success: false, error: "Internal server error" });
+    return res.status(500).json({ success: false, error: "Internal server error" });
   }
 });
