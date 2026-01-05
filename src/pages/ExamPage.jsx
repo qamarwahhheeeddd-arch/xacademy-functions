@@ -1,6 +1,7 @@
 // src/pages/ExamPage.jsx
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
+
 
 import ExamUI from "../components/ExamUI";
 import BreakScreen from "../components/BreakScreen";
@@ -104,6 +105,9 @@ function getOrCreateUserId() {
 // ====== COMPONENT ======
 export default function ExamPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+const mode = location.state?.mode || 2; // default 2 students
+
 
   // ===== STATES =====
   const [questions, setQuestions] = useState([]);
