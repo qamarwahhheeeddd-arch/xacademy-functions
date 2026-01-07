@@ -1,6 +1,13 @@
 // src/pages/ExamPage.jsx
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, {
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+} from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { doc, onSnapshot, runTransaction } from "firebase/firestore";
+import { db } from "../firebase";
 
 import ExamUI from "../components/ExamUI";
 import BreakScreen from "../components/BreakScreen";
@@ -8,8 +15,7 @@ import { useCamera } from "../hooks/useCamera";
 import { useAntiCheat } from "../hooks/useAntiCheat";
 import { useFaceDetection } from "../hooks/useFaceDetection";
 
-// ====== IMPORT MCQ SETS ======
-// MEDICAL
+// ====== MCQ SETS (same as before) ======
 import { medBiologyB1 } from "../Paper data/Medical paper/Biology/B1";
 import { medBiologyB2 } from "../Paper data/Medical paper/Biology/B2";
 import { medBiologyB3 } from "../Paper data/Medical paper/Biology/B3";
@@ -40,7 +46,6 @@ import { medNewsN3 } from "../Paper data/Medical paper/News/N3";
 import { medNewsN4 } from "../Paper data/Medical paper/News/N4";
 import { medNewsN5 } from "../Paper data/Medical paper/News/N5";
 
-// ENGINEERING
 import { engEnglishE1 } from "../Paper data/Engineering paper/English/E1";
 import { engEnglishE2 } from "../Paper data/Engineering paper/English/E2";
 import { engEnglishE3 } from "../Paper data/Engineering paper/English/E3";
@@ -74,7 +79,7 @@ import { engNewsN5 } from "../Paper data/Engineering paper/News/N5";
 // ====== CONSTANTS ======
 const MAX_HEARTS = 5;
 const QUESTION_TIME_SECONDS = 15;
-const BREAK_SECONDS = 90;
+const BREAK_SECONDS = 10;
 
 // ====== HELPERS ======
 function shuffle(array) {
@@ -91,18 +96,29 @@ function pickRandomFive(arr) {
   return shuffled.slice(0, Math.min(5, shuffled.length));
 }
 
+function getOrCreateUserId() {
+  let id = localStorage.getItem("examUserId");
+  if (!id) {
+    id = "user_" + Math.random().toString(36).slice(2, 10);
+    localStorage.setItem("examUserId", id);
+  }
+  return id;
+}
+
 // ====== COMPONENT ======
 export default function ExamPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
   const paperType = location.state?.paperType;
-  const mode = location.state?.mode;
+  const mode = Number(location.state?.mode || 2);
   const roomId = location.state?.roomId;
 
-  // If missing data → redirect
+  const userId = getOrCreateUserId();
+
+  // Guards
   useEffect(() => {
-    if (!paperType || !mode || !roomId) {
+    if (!paperType || !mode || !roomId || isNaN(mode)) {
       navigate("/");
     }
   }, []);
@@ -125,12 +141,16 @@ export default function ExamPage() {
 
   const hasSubmittedRef = useRef(false);
 
+  // Room sync
+  const [roomData, setRoomData] = useState(null);
+
   // ===== ANTI‑CHEAT =====
   const handleMaxWarnings = useCallback(() => {
     endExam("warnings");
   }, []);
 
-  const { warnings, addWarning, MAX_WARNINGS } = useAntiCheat(handleMaxWarnings);
+  const { warnings, addWarning, MAX_WARNINGS } =
+    useAntiCheat(handleMaxWarnings);
 
   // ===== CAMERA =====
   const { videoRef, streamRef, restartCamera } = useCamera(addWarning);
@@ -138,79 +158,140 @@ export default function ExamPage() {
   // ===== FACE DETECTION =====
   useFaceDetection(videoRef, addWarning, !breakActive);
 
-  // ===== LOAD QUESTIONS =====
+  // ===== LOAD QUESTIONS (same for all students) =====
   useEffect(() => {
     let examSeq = [];
 
     if (paperType === "medical") {
       const medSets = [
-        medBiologyB1, medBiologyB2, medBiologyB3, medBiologyB4, medBiologyB5,
-        medChemistryCh1, medChemistryCh2, medChemistryCh3, medChemistryCh4, medChemistryCh5,
-        medEnglishE1, medEnglishE2, medEnglishE3, medEnglishE4, medEnglishE5,
-        medPhysicsP1, medPhysicsP2, medPhysicsP3, medPhysicsP4, medPhysicsP5,
+        medBiologyB1,
+        medBiologyB2,
+        medBiologyB3,
+        medBiologyB4,
+        medBiologyB5,
+        medChemistryCh1,
+        medChemistryCh2,
+        medChemistryCh3,
+        medChemistryCh4,
+        medChemistryCh5,
+        medEnglishE1,
+        medEnglishE2,
+        medEnglishE3,
+        medEnglishE4,
+        medEnglishE5,
+        medPhysicsP1,
+        medPhysicsP2,
+        medPhysicsP3,
+        medPhysicsP4,
+        medPhysicsP5,
       ];
 
-      const medNewsSets = [medNewsN1, medNewsN2, medNewsN3, medNewsN4, medNewsN5];
+      const medNewsSets = [
+        medNewsN1,
+        medNewsN2,
+        medNewsN3,
+        medNewsN4,
+        medNewsN5,
+      ];
 
-      medSets.forEach((set) => examSeq = examSeq.concat(pickRandomFive(set)));
-      medNewsSets.forEach((set) => examSeq = examSeq.concat(pickRandomFive(set)));
+      medSets.forEach(
+        (set) => (examSeq = examSeq.concat(pickRandomFive(set)))
+      );
+      medNewsSets.forEach(
+        (set) => (examSeq = examSeq.concat(pickRandomFive(set)))
+      );
     }
 
     if (paperType === "engineering") {
       const engSets = [
-        engEnglishE1, engEnglishE2, engEnglishE3, engEnglishE4, engEnglishE5,
-        engComputerC1, engComputerC2, engComputerC3, engComputerC4, engComputerC5,
-        engMathM1, engMathM2, engMathM3, engMathM4, engMathM5,
-        engPhysicsP1, engPhysicsP2, engPhysicsP3, engPhysicsP4, engPhysicsP5,
+        engEnglishE1,
+        engEnglishE2,
+        engEnglishE3,
+        engEnglishE4,
+        engEnglishE5,
+        engComputerC1,
+        engComputerC2,
+        engComputerC3,
+        engComputerC4,
+        engComputerC5,
+        engMathM1,
+        engMathM2,
+        engMathM3,
+        engMathM4,
+        engMathM5,
+        engPhysicsP1,
+        engPhysicsP2,
+        engPhysicsP3,
+        engPhysicsP4,
+        engPhysicsP5,
       ];
 
-      const engNewsSets = [engNewsN1, engNewsN2, engNewsN3, engNewsN4, engNewsN5];
+      const engNewsSets = [
+        engNewsN1,
+        engNewsN2,
+        engNewsN3,
+        engNewsN4,
+        engNewsN5,
+      ];
 
-      engSets.forEach((set) => examSeq = examSeq.concat(pickRandomFive(set)));
-      engNewsSets.forEach((set) => examSeq = examSeq.concat(pickRandomFive(set)));
+      engSets.forEach(
+        (set) => (examSeq = examSeq.concat(pickRandomFive(set)))
+      );
+      engNewsSets.forEach(
+        (set) => (examSeq = examSeq.concat(pickRandomFive(set)))
+      );
     }
 
     setQuestions(examSeq);
-  }, []);
+  }, [paperType]);
 
-  // ===== TIMER RESET =====
+  // ===== ROOM LISTENER (global sync) =====
   useEffect(() => {
-    if (breakActive || examEnded) return;
-    setQuestionTimer(QUESTION_TIME_SECONDS);
-    setSelectedOption(null);
-  }, [currentIndex, breakActive, examEnded]);
+    if (!roomId) return;
 
-  // ===== QUESTION TIMER COUNTDOWN =====
+    const ref = doc(db, "examRooms", roomId);
+
+    const unsub = onSnapshot(ref, (snap) => {
+      if (!snap.exists()) return;
+      const data = snap.data();
+      setRoomData(data);
+
+      // Sync current question index
+      if (typeof data.currentQuestion === "number") {
+        setCurrentIndex(data.currentQuestion);
+      }
+
+      // Sync timer from deadline
+      if (data.questionDeadline) {
+        const deadline = data.questionDeadline.toDate();
+        const now = new Date();
+        const diff = Math.max(
+          0,
+          Math.floor((deadline.getTime() - now.getTime()) / 1000)
+        );
+        setQuestionTimer(diff);
+      }
+    });
+
+    return () => unsub();
+  }, [roomId]);
+
+  // ===== LOCAL TIMER FALLBACK (just to tick UI) =====
   useEffect(() => {
     if (breakActive || examEnded) return;
     if (questionTimer <= 0) return;
 
     const interval = setInterval(() => {
-      setQuestionTimer((prev) => prev - 1);
+      setQuestionTimer((prev) => Math.max(0, prev - 1));
     }, 1000);
 
     return () => clearInterval(interval);
   }, [questionTimer, breakActive, examEnded]);
 
-  // ===== TIMER HIT ZERO =====
-  useEffect(() => {
+  // ===== ANSWER CLICK (write to Firestore answers) =====
+  async function handleOptionClick(option) {
     if (examEnded || breakActive) return;
-    if (questionTimer !== 0) return;
-
-    if (!selectedOption) {
-      setHearts((prev) => {
-        const next = prev - 1;
-        if (next <= 0) endExam("hearts");
-        return next;
-      });
-    }
-
-    goToNextQuestion();
-  }, [questionTimer, examEnded, breakActive, selectedOption]);
-
-  // ===== ANSWER CLICK =====
-  function handleOptionClick(option) {
-    if (examEnded || breakActive) return;
+    if (!roomId || !roomData) return;
 
     const currentQ = questions[currentIndex];
     if (!currentQ) return;
@@ -232,29 +313,90 @@ export default function ExamPage() {
       });
     }
 
-    goToNextQuestion();
-  }
+    const ref = doc(db, "examRooms", roomId);
 
-  // ===== NEXT QUESTION =====
-  function goToNextQuestion() {
-    setCurrentIndex((prev) => {
-      const next = prev + 1;
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists()) return;
+      const data = snap.data();
 
-      if (next >= questions.length) {
-        endExam("winner");
-        return prev;
-      }
+      const answers = data.answers || {};
+      answers[userId] = option;
 
-      const nextNumber = next + 1;
-      if (nextNumber > 1 && (nextNumber - 1) % 10 === 0) {
-        startBreak();
-      }
-
-      return next;
+      tx.update(ref, { answers });
     });
   }
 
-  // ===== BREAK =====
+  // ===== CHECK IF WE SHOULD ADVANCE QUESTION =====
+  useEffect(() => {
+    if (!roomData || !roomId || examEnded) return;
+    if (!roomData.students || !Array.isArray(roomData.students)) return;
+
+    const students = roomData.students.filter(Boolean);
+    const answers = roomData.answers || {};
+    const deadline = roomData.questionDeadline
+      ? roomData.questionDeadline.toDate()
+      : null;
+
+    const now = new Date();
+
+    const allAnswered = students.every((sid) => answers[sid]);
+    const timeOver = deadline && now >= deadline;
+
+    // Only leader student (first in array) will drive the transition
+    const isLeader = students[0] === userId;
+
+    if (!isLeader) return;
+    if (!allAnswered && !timeOver) return;
+
+    // Leader moves to next question
+    advanceQuestion(students, answers, timeOver);
+  }, [roomData, examEnded]);
+
+  // ===== ADVANCE QUESTION (transaction) =====
+  async function advanceQuestion(students, answers, timeOver) {
+    if (!roomId) return;
+
+    const ref = doc(db, "examRooms", roomId);
+
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists()) return;
+      const data = snap.data();
+
+      const currentQ = data.currentQuestion || 0;
+      const totalQuestions = questions.length;
+
+      // Hearts penalty for those who didn't answer when timeOver
+      if (timeOver) {
+        // Hearts per student can be stored in room if you want global sync later
+        // For now, we only handle local hearts in UI
+      }
+
+      const nextQ = currentQ + 1;
+
+      if (nextQ >= totalQuestions) {
+        // Exam finished for this room
+        tx.update(ref, {
+          currentQuestion: currentQ,
+          status: "finished",
+        });
+        return;
+      }
+
+      const newDeadline = new Date(
+        Date.now() + QUESTION_TIME_SECONDS * 1000
+      );
+
+      tx.update(ref, {
+        currentQuestion: nextQ,
+        questionDeadline: newDeadline,
+        answers: {}, // reset answers for next question
+      });
+    });
+  }
+
+  // ===== BREAK LOGIC (local, optional) =====
   function startBreak() {
     setBreakActive(true);
     setBreakTimer(BREAK_SECONDS);
@@ -290,7 +432,8 @@ export default function ExamPage() {
     if (reason === "warnings") msg = "Go and Be Honest";
     if (reason === "hearts") msg = "Go and Prepare again➡️";
     if (reason === "winner") msg = "😎 Winner vibes only💲";
-    if (reason === "timeout-all") msg = "Go and Prepare yourself for success 🏆";
+    if (reason === "timeout-all")
+      msg = "Go and Prepare yourself for success 🏆";
 
     setEndMessage(msg);
     setShowEndOverlay(true);
@@ -300,25 +443,50 @@ export default function ExamPage() {
 
   // ===== UI ORDER =====
 
-  // QUESTIONS LOADING
+  if (!roomData || roomData.status !== "started") {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          background: "#0f172a",
+          color: "#e5e7eb",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "16px",
+          textAlign: "center",
+        }}
+      >
+        <div>
+          <h2>Waiting for exam to start...</h2>
+          <p style={{ marginTop: 8 }}>
+            Room: <strong>{roomId}</strong>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   if (questions.length === 0) {
     return (
-      <div style={{
-        minHeight: "100vh",
-        background: "#0f172a",
-        color: "#e5e7eb",
-        padding: 16
-      }}>
+      <div
+        style={{
+          minHeight: "100vh",
+          background: "#0f172a",
+          color: "#e5e7eb",
+          padding: 16,
+        }}
+      >
         <h2>Loading exam...</h2>
       </div>
     );
   }
 
   const currentQ = questions[currentIndex];
-  const heartsDisplay = "❤".repeat(hearts) + "♡".repeat(MAX_HEARTS - hearts);
+  const heartsDisplay =
+    "❤".repeat(hearts) + "♡".repeat(MAX_HEARTS - hearts);
   const warningsText = `Warnings: ${warnings}/${MAX_WARNINGS}`;
 
-  // BREAK SCREEN
   if (breakActive) {
     return (
       <BreakScreen
@@ -329,7 +497,6 @@ export default function ExamPage() {
     );
   }
 
-  // NORMAL EXAM UI
   return (
     <ExamUI
       videoRef={videoRef}
@@ -349,3 +516,4 @@ export default function ExamPage() {
     />
   );
 }
+A

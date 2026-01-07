@@ -4,12 +4,11 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
 
-// Initialize Firebase Admin once
 if (!admin.apps.length) admin.initializeApp();
 const db = admin.firestore();
 
 // ===============================
-//  JOIN EXAM ROOM (V3)
+//  JOIN EXAM ROOM (V3) — SYNC READY
 // ===============================
 exports.joinExamRoomV3 = onRequest({ region: "us-central1" }, async (req, res) => {
   // -------------------------------
@@ -24,7 +23,6 @@ exports.joinExamRoomV3 = onRequest({ region: "us-central1" }, async (req, res) =
   }
 
   try {
-    // Allow only POST
     if (req.method !== "POST") {
       return res.status(405).send("Method not allowed");
     }
@@ -32,7 +30,6 @@ exports.joinExamRoomV3 = onRequest({ region: "us-central1" }, async (req, res) =
     const { paperType, studentId, mode } = req.body;
     console.log("JOIN REQUEST:", { paperType, studentId, mode });
 
-    // Validate input
     const maxStudents = Number(mode);
     if (!paperType || !studentId || !mode || isNaN(maxStudents) || maxStudents <= 0) {
       return res.status(400).json({
@@ -43,7 +40,9 @@ exports.joinExamRoomV3 = onRequest({ region: "us-central1" }, async (req, res) =
 
     const roomsCol = db.collection("examRooms");
 
-    // Find an existing waiting room
+    // ===============================
+    //  FIND WAITING ROOM
+    // ===============================
     const qSnap = await roomsCol
       .where("paperType", "==", paperType)
       .where("maxStudents", "==", maxStudents)
@@ -63,7 +62,9 @@ exports.joinExamRoomV3 = onRequest({ region: "us-central1" }, async (req, res) =
       }
     });
 
-    // JOIN EXISTING ROOM
+    // ===============================
+    //  JOIN EXISTING ROOM
+    // ===============================
     if (targetRoom) {
       const roomDoc = await targetRoom.get();
       const roomData = roomDoc.data();
@@ -76,23 +77,36 @@ exports.joinExamRoomV3 = onRequest({ region: "us-central1" }, async (req, res) =
         students.push(studentId);
       }
 
-      const status = students.length === maxStudents ? "started" : "waiting";
+      const isFull = students.length === maxStudents;
 
-      await targetRoom.update({
+      const updateData = {
         students,
-        status,
         updatedAt: admin.firestore.Timestamp.now(),
-      });
+      };
+
+      // ⭐ If room becomes full → start synced exam
+      if (isFull) {
+        updateData.status = "started";
+        updateData.currentQuestion = 0;
+        updateData.answers = {};
+        updateData.questionDeadline = admin.firestore.Timestamp.fromMillis(
+          Date.now() + 15000 // 15 sec
+        );
+      }
+
+      await targetRoom.update(updateData);
 
       return res.json({
         success: true,
         roomId: targetRoom.id,
-        status,
+        status: isFull ? "started" : "waiting",
         studentsCount: students.length,
       });
     }
 
-    // CREATE NEW ROOM
+    // ===============================
+    //  CREATE NEW ROOM
+    // ===============================
     const newRoomRef = roomsCol.doc();
 
     await newRoomRef.set({
@@ -100,6 +114,9 @@ exports.joinExamRoomV3 = onRequest({ region: "us-central1" }, async (req, res) =
       maxStudents,
       students: [studentId],
       status: "waiting",
+      currentQuestion: 0,
+      answers: {},
+      questionDeadline: null, // exam not started yet
       createdAt: admin.firestore.Timestamp.now(),
     });
 
