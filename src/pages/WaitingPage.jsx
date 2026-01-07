@@ -9,12 +9,13 @@ export default function WaitingPage() {
 
   const roomId = location.state?.roomId;
   const paperType = location.state?.paperType;
-  const mode = location.state?.mode;
+  const mode = Number(location.state?.mode); // ensure it's a number
 
   const [studentsCount, setStudentsCount] = useState(1);
+  const [status, setStatus] = useState("waiting");
 
   useEffect(() => {
-    if (!roomId || !paperType || !mode) {
+    if (!roomId || !paperType || !mode || isNaN(mode)) {
       navigate("/");
       return;
     }
@@ -26,10 +27,15 @@ export default function WaitingPage() {
 
       const data = snap.data();
 
-      setStudentsCount(data.students.length);
+      const count = Array.isArray(data.students)
+        ? data.students.filter(Boolean).length
+        : 0;
 
-      // Group complete → exam start
-      if (data.status === "started") {
+      setStudentsCount(count);
+      setStatus(data.status);
+
+      // ✅ Only start exam when status is "started" AND students are complete
+      if (data.status === "started" && count === mode) {
         navigate("/exam", {
           state: { roomId, paperType, mode }
         });
@@ -60,7 +66,9 @@ export default function WaitingPage() {
       <h3 style={{ marginTop: 10 }}>Mode: {mode} Students</h3>
 
       <p style={{ marginTop: 30, fontSize: 18 }}>
-        Waiting for other students...
+        {status === "started" && studentsCount < mode
+          ? "Group started early — waiting for others..."
+          : "Waiting for other students..."}
       </p>
 
       <p style={{ marginTop: 10, opacity: 0.7 }}>
