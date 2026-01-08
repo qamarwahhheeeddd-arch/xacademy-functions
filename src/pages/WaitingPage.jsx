@@ -36,20 +36,26 @@ export default function WaitingPage() {
       setStatus(data.status);
 
       // NEW: read examStartAt
-      if (data.examStartAt) {
-        setStartAt(data.examStartAt.toMillis());
-      }
+      //if (data.examStartAt) {
+        //setStartAt(data.examStartAt.toMillis());
+      //}
 
       // ⭐ NEW LOGIC — SAFE START
-      if (data.status === "starting" && count === mode && data.examStartAt) {
-        const now = Date.now();
+      //if (data.status === "starting" && count === mode && data.examStartAt) {
+       // const now = Date.now();
 
-        if (now >= data.examStartAt.toMillis()) {
-          navigate("/exam", {
-            state: { roomId, paperType, mode }
-          });
-        }
-      }
+        //if (now >= data.examStartAt.toMillis()) {
+          //navigate("/exam", {
+            //state: { roomId, paperType, mode }
+          //});
+       // }
+      //}
+// ✅ INSTANT START — NO DELAY
+if (data.status === "started" && count === mode) {
+  navigate("/exam", {
+    state: { roomId, paperType, mode }
+  });
+}
 
       // ⭐ BACKWARD COMPATIBILITY (if backend sends "started")
       if (data.status === "started" && count === mode) {
