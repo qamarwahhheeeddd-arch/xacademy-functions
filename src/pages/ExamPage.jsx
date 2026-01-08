@@ -14,10 +14,8 @@ import { db } from "../firebase";
 import ExamUI from "../components/ExamUI";
 import BreakScreen from "../components/BreakScreen";
 import { useCamera } from "../hooks/useCamera";
-//import { useAntiCheat } from "../hooks/useAntiCheat";
-//import { useFaceDetection } from "../hooks/useFaceDetection";
 
-// ====== MCQ SETS (same as before) ======
+// ====== MCQ SETS ======
 import { medBiologyB1 } from "../Paper data/Medical paper/Biology/B1";
 import { medBiologyB2 } from "../Paper data/Medical paper/Biology/B2";
 import { medBiologyB3 } from "../Paper data/Medical paper/Biology/B3";
@@ -118,12 +116,26 @@ export default function ExamPage() {
 
   const userId = getOrCreateUserId();
 
-  // Guards
-  useEffect(() => {
-    if (!paperType || !mode || !roomId || isNaN(mode)) {
-      navigate("/");
-    }
-  }, []);
+  // ===== CAMERA + MULTI-VIDEO =====
+  const {
+    videoRef,
+    streamRef,
+    remoteStreams,
+    peersRef,
+    addRemoteStream,
+    removeRemoteStream,
+    restartCamera,
+  } = useCamera(() => {});
+
+  // ===== WEBRTC HOOK (TOP LEVEL — SAFE) =====
+  useVideoRoom({
+    roomId,
+    userId,
+    streamRef,
+    peersRef,
+    addRemoteStream,
+    removeRemoteStream,
+  });
 
   // ===== STATES =====
   const [questions, setQuestions] = useState([]);
@@ -143,135 +155,44 @@ export default function ExamPage() {
 
   const hasSubmittedRef = useRef(false);
 
-  // Room sync
   const [roomData, setRoomData] = useState(null);
 
-  // ===== ANTI‑CHEAT =====
-  const handleMaxWarnings = useCallback(() => {
-    endExam("warnings");
-  }, []);
-
-  //const { warnings, addWarning, MAX_WARNINGS } =
-    //useAntiCheat(handleMaxWarnings);
-// ❌ WARNINGS SYSTEM OFF
-const warnings = 0;
-const MAX_WARNINGS = 999;
-const addWarning = () => {};
-
-  // ===== CAMERA =====
-  // ===== CAMERA + MULTI-VIDEO =====
-const {
-  videoRef,
-  streamRef,
-  remoteStreams,
-  peersRef,
-  addRemoteStream,
-  removeRemoteStream,
-  restartCamera,
-} = useCamera(addWarning);
-//..................
-useVideoRoom({
-  roomId,
-  userId,
-  streamRef,
-  peersRef,
-  addRemoteStream,
-  removeRemoteStream,
-});
-
-// ===== WEBRTC VIDEO ROOM =====
-
-  // ===== FACE DETECTION =====
-  //useFaceDetection(videoRef, addWarning, !breakActive);
-
-  // ===== LOAD QUESTIONS (same for all students) =====
+  // ===== LOAD QUESTIONS =====
   useEffect(() => {
     let examSeq = [];
 
     if (paperType === "medical") {
       const medSets = [
-        medBiologyB1,
-        medBiologyB2,
-        medBiologyB3,
-        medBiologyB4,
-        medBiologyB5,
-        medChemistryCh1,
-        medChemistryCh2,
-        medChemistryCh3,
-        medChemistryCh4,
-        medChemistryCh5,
-        medEnglishE1,
-        medEnglishE2,
-        medEnglishE3,
-        medEnglishE4,
-        medEnglishE5,
-        medPhysicsP1,
-        medPhysicsP2,
-        medPhysicsP3,
-        medPhysicsP4,
-        medPhysicsP5,
+        medBiologyB1, medBiologyB2, medBiologyB3, medBiologyB4, medBiologyB5,
+        medChemistryCh1, medChemistryCh2, medChemistryCh3, medChemistryCh4, medChemistryCh5,
+        medEnglishE1, medEnglishE2, medEnglishE3, medEnglishE4, medEnglishE5,
+        medPhysicsP1, medPhysicsP2, medPhysicsP3, medPhysicsP4, medPhysicsP5,
       ];
 
-      const medNewsSets = [
-        medNewsN1,
-        medNewsN2,
-        medNewsN3,
-        medNewsN4,
-        medNewsN5,
-      ];
+      const medNewsSets = [medNewsN1, medNewsN2, medNewsN3, medNewsN4, medNewsN5];
 
-      medSets.forEach(
-        (set) => (examSeq = examSeq.concat(pickRandomFive(set)))
-      );
-      medNewsSets.forEach(
-        (set) => (examSeq = examSeq.concat(pickRandomFive(set)))
-      );
+      medSets.forEach(set => examSeq = examSeq.concat(pickRandomFive(set)));
+      medNewsSets.forEach(set => examSeq = examSeq.concat(pickRandomFive(set)));
     }
 
     if (paperType === "engineering") {
       const engSets = [
-        engEnglishE1,
-        engEnglishE2,
-        engEnglishE3,
-        engEnglishE4,
-        engEnglishE5,
-        engComputerC1,
-        engComputerC2,
-        engComputerC3,
-        engComputerC4,
-        engComputerC5,
-        engMathM1,
-        engMathM2,
-        engMathM3,
-        engMathM4,
-        engMathM5,
-        engPhysicsP1,
-        engPhysicsP2,
-        engPhysicsP3,
-        engPhysicsP4,
-        engPhysicsP5,
+        engEnglishE1, engEnglishE2, engEnglishE3, engEnglishE4, engEnglishE5,
+        engComputerC1, engComputerC2, engComputerC3, engComputerC4, engComputerC5,
+        engMathM1, engMathM2, engMathM3, engMathM4, engMathM5,
+        engPhysicsP1, engPhysicsP2, engPhysicsP3, engPhysicsP4, engPhysicsP5,
       ];
 
-      const engNewsSets = [
-        engNewsN1,
-        engNewsN2,
-        engNewsN3,
-        engNewsN4,
-        engNewsN5,
-      ];
+      const engNewsSets = [engNewsN1, engNewsN2, engNewsN3, engNewsN4, engNewsN5];
 
-      engSets.forEach(
-        (set) => (examSeq = examSeq.concat(pickRandomFive(set)))
-      );
-      engNewsSets.forEach(
-        (set) => (examSeq = examSeq.concat(pickRandomFive(set)))
-      );
+      engSets.forEach(set => examSeq = examSeq.concat(pickRandomFive(set)));
+      engNewsSets.forEach(set => examSeq = examSeq.concat(pickRandomFive(set)));
     }
 
     setQuestions(examSeq);
   }, [paperType]);
 
-  // ===== ROOM LISTENER (global sync) =====
+  // ===== ROOM LISTENER =====
   useEffect(() => {
     if (!roomId) return;
 
@@ -282,12 +203,10 @@ useVideoRoom({
       const data = snap.data();
       setRoomData(data);
 
-      // Sync current question index
       if (typeof data.currentQuestion === "number") {
         setCurrentIndex(data.currentQuestion);
       }
 
-      // Sync timer from deadline
       if (data.questionDeadline) {
         const deadline = data.questionDeadline.toDate();
         const now = new Date();
@@ -302,7 +221,7 @@ useVideoRoom({
     return () => unsub();
   }, [roomId]);
 
-  // ===== LOCAL TIMER FALLBACK (just to tick UI) =====
+  // ===== LOCAL TIMER =====
   useEffect(() => {
     if (breakActive || examEnded) return;
     if (questionTimer <= 0) return;
@@ -314,7 +233,7 @@ useVideoRoom({
     return () => clearInterval(interval);
   }, [questionTimer, breakActive, examEnded]);
 
-  // ===== ANSWER CLICK (write to Firestore answers) =====
+  // ===== ANSWER CLICK =====
   async function handleOptionClick(option) {
     if (examEnded || breakActive) return;
     if (!roomId || !roomData) return;
@@ -353,7 +272,7 @@ useVideoRoom({
     });
   }
 
-  // ===== CHECK IF WE SHOULD ADVANCE QUESTION =====
+  // ===== ADVANCE QUESTION =====
   useEffect(() => {
     if (!roomData || !roomId || examEnded) return;
     if (!roomData.students || !Array.isArray(roomData.students)) return;
@@ -369,17 +288,14 @@ useVideoRoom({
     const allAnswered = students.every((sid) => answers[sid]);
     const timeOver = deadline && now >= deadline;
 
-    // Only leader student (first in array) will drive the transition
     const isLeader = students[0] === userId;
 
     if (!isLeader) return;
     if (!allAnswered && !timeOver) return;
 
-    // Leader moves to next question
     advanceQuestion(students, answers, timeOver);
   }, [roomData, examEnded]);
 
-  // ===== ADVANCE QUESTION (transaction) =====
   async function advanceQuestion(students, answers, timeOver) {
     if (!roomId) return;
 
@@ -393,16 +309,9 @@ useVideoRoom({
       const currentQ = data.currentQuestion || 0;
       const totalQuestions = questions.length;
 
-      // Hearts penalty for those who didn't answer when timeOver
-      if (timeOver) {
-        // Hearts per student can be stored in room if you want global sync later
-        // For now, we only handle local hearts in UI
-      }
-
       const nextQ = currentQ + 1;
 
       if (nextQ >= totalQuestions) {
-        // Exam finished for this room
         tx.update(ref, {
           currentQuestion: currentQ,
           status: "finished",
@@ -417,17 +326,12 @@ useVideoRoom({
       tx.update(ref, {
         currentQuestion: nextQ,
         questionDeadline: newDeadline,
-        answers: {}, // reset answers for next question
+        answers: {},
       });
     });
   }
 
-  // ===== BREAK LOGIC (local, optional) =====
-  function startBreak() {
-    setBreakActive(true);
-    setBreakTimer(BREAK_SECONDS);
-  }
-
+  // ===== BREAK LOGIC =====
   useEffect(() => {
     if (!breakActive) return;
     if (breakTimer <= 0) {
@@ -467,79 +371,43 @@ useVideoRoom({
     setTimeout(() => navigate("/"), 3000);
   }
 
-  // ===== UI ORDER =====
-
-  if (!roomData || roomData.status !== "started") {
-    return (
-      <div
-        style={{
-          minHeight: "100vh",
-          background: "#0f172a",
-          color: "#e5e7eb",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "16px",
-          textAlign: "center",
-        }}
-      >
-        <div>
-          <h2>Waiting for exam to start...</h2>
-          <p style={{ marginTop: 8 }}>
-            Room: <strong>{roomId}</strong>
-          </p>
-        </div>
-      </div>
-    );
+  // ===== SAFETY GUARDS =====
+  if (!roomData) {
+    return <div style={{ color: "white", padding: 20 }}>Loading room...</div>;
   }
 
-  if (questions.length === 0) {
-    return (
-      <div
-        style={{
-          minHeight: "100vh",
-          background: "#0f172a",
-          color: "#e5e7eb",
-          padding: 16,
-        }}
-      >
-        <h2>Loading exam...</h2>
-      </div>
-    );
+  if (!questions[currentIndex]) {
+    return <div style={{ color: "white", padding: 20 }}>Loading question...</div>;
   }
 
+  // ===== UI RENDER =====
   const currentQ = questions[currentIndex];
-  const heartsDisplay =
-    "❤".repeat(hearts) + "♡".repeat(MAX_HEARTS - hearts);
-  const warningsText = `Warnings: ${warnings}/${MAX_WARNINGS}`;
-
-  if (breakActive) {
-    return (
-      <BreakScreen
-        heartsDisplay={heartsDisplay}
-        warningsText={warningsText}
-        timeLeft={breakTimer}
-      />
-    );
-  }
 
   return (
-    <ExamUI
-      videoRef={videoRef}
-      remoteStreams={remoteStreams}
-      hearts={hearts}
-      //warnings={warnings}
-      //maxWarnings={MAX_WARNINGS}
-      question={currentQ.question}
-      currentIndex={currentIndex}
-      totalQuestions={questions.length}
-      options={currentQ.options}
-      selectedOption={selectedOption}
-      onOptionClick={handleOptionClick}
-      score={score}
-      questionTimer={questionTimer}
-      showEndOverlay={showEndOverlay}
-      endMessage={endMessage}
-    />
+    <>
+      {breakActive ? (
+        <BreakScreen
+          heartsDisplay={"❤".repeat(hearts) + "♡".repeat(MAX_HEARTS - hearts)}
+          warningsText={`Warnings: 0/999`}
+          timeLeft={breakTimer}
+        />
+      ) : (
+        <ExamUI
+          videoRef={videoRef}
+          remoteStreams={remoteStreams}
+          hearts={hearts}
+          question={currentQ.question}
+          currentIndex={currentIndex}
+          totalQuestions={questions.length}
+          options={currentQ.options}
+          selectedOption={selectedOption}
+          onOptionClick={handleOptionClick}
+          score={score}
+          questionTimer={questionTimer}
+          showEndOverlay={showEndOverlay}
+          endMessage={endMessage}
+        />
+      )}
+    </>
   );
 }
