@@ -14,8 +14,8 @@ import { db } from "../firebase";
 import ExamUI from "../components/ExamUI";
 import BreakScreen from "../components/BreakScreen";
 import { useCamera } from "../hooks/useCamera";
-import { useAntiCheat } from "../hooks/useAntiCheat";
-import { useFaceDetection } from "../hooks/useFaceDetection";
+//import { useAntiCheat } from "../hooks/useAntiCheat";
+//import { useFaceDetection } from "../hooks/useFaceDetection";
 
 // ====== MCQ SETS (same as before) ======
 import { medBiologyB1 } from "../Paper data/Medical paper/Biology/B1";
@@ -151,8 +151,12 @@ export default function ExamPage() {
     endExam("warnings");
   }, []);
 
-  const { warnings, addWarning, MAX_WARNINGS } =
-    useAntiCheat(handleMaxWarnings);
+  //const { warnings, addWarning, MAX_WARNINGS } =
+    //useAntiCheat(handleMaxWarnings);
+// ❌ WARNINGS SYSTEM OFF
+const warnings = 0;
+const MAX_WARNINGS = 999;
+const addWarning = () => {};
 
   // ===== CAMERA =====
   // ===== CAMERA + MULTI-VIDEO =====
@@ -180,7 +184,7 @@ useEffect(() => {
 }, [streamRef.current]);
 
   // ===== FACE DETECTION =====
-  useFaceDetection(videoRef, addWarning, !breakActive);
+  //useFaceDetection(videoRef, addWarning, !breakActive);
 
   // ===== LOAD QUESTIONS (same for all students) =====
   useEffect(() => {
@@ -526,8 +530,8 @@ useEffect(() => {
       videoRef={videoRef}
       remoteStreams={remoteStreams}
       hearts={hearts}
-      warnings={warnings}
-      maxWarnings={MAX_WARNINGS}
+      //warnings={warnings}
+      //maxWarnings={MAX_WARNINGS}
       question={currentQ.question}
       currentIndex={currentIndex}
       totalQuestions={questions.length}

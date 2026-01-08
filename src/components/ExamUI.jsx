@@ -33,9 +33,6 @@ export default function ExamUI({
       {/* Top bar */}
       <div style={styles.topBar}>
         <div style={styles.badge}>Hearts: {heartsDisplay}</div>
-        <div style={styles.badge}>
-          Warnings: {warnings}/{maxWarnings}
-        </div>
 
         <Timer seconds={breakActive ? breakTimer : questionTimer} />
       </div>
