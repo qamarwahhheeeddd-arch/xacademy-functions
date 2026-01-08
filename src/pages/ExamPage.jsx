@@ -166,15 +166,18 @@ const {
   restartCamera,
 } = useCamera(addWarning);
 // ===== WEBRTC VIDEO ROOM =====
-useVideoRoom({
-  roomId,
-  userId,
-  streamRef,
-  peersRef,
-  addRemoteStream,
-  removeRemoteStream,
-});
+useEffect(() => {
+  if (!streamRef.current) return;
 
+  useVideoRoom({
+    roomId,
+    userId,
+    streamRef,
+    peersRef,
+    addRemoteStream,
+    removeRemoteStream,
+  });
+}, [streamRef.current]);
 
   // ===== FACE DETECTION =====
   useFaceDetection(videoRef, addWarning, !breakActive);
