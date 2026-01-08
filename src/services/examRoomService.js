@@ -9,7 +9,7 @@ const db = getFirestore(app);
 export async function joinExamRoom(paperType, studentId, mode) {
   try {
     const res = await fetch(
-      "https://us-central1-xacademy8-e52db.cloudfunctions.net/joinExamRoomV3",
+      "https://us-central1-xacademy8-e52db.cloudfunctions.net/joinExamRoomV4",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
