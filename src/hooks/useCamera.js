@@ -1,26 +1,30 @@
 // src/hooks/useCamera.js
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export function useCamera(onTrackEndWarning) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
 
+  // ⭐ NEW: remote students ki video streams
+  const [remoteStreams, setRemoteStreams] = useState({});
+
+  // ⭐ NEW: WebRTC peer connections
+  const peersRef = useRef({});
+
   const startCamera = async () => {
     try {
-      // 🔹 Ask for BOTH camera + mic
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "user" },
         audio: true,
       });
 
-      // ✅ If user ALLOWED → stream available
       streamRef.current = stream;
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
 
-      // 🔹 If camera/mic stops during exam → warning
+      // Camera/mic stop warning
       stream.getTracks().forEach((track) => {
         track.onended = () => {
           if (onTrackEndWarning) {
@@ -33,14 +37,11 @@ export function useCamera(onTrackEndWarning) {
     } catch (err) {
       console.error("Media error:", err);
 
-      // ❌ User clicked "Deny" or "Never Allow"
       if (err.name === "NotAllowedError" || err.name === "SecurityError") {
-        // Direct redirect to home, no exam access
         window.location.href = "/";
         return;
       }
 
-      // ❌ No camera/mic device found or other issues
       if (onTrackEndWarning) {
         onTrackEndWarning(
           "Camera/Mic access denied or not available. Exam requires them ON."
@@ -49,20 +50,43 @@ export function useCamera(onTrackEndWarning) {
     }
   };
 
+  // ⭐ NEW: Add remote stream from WebRTC peer
+  const addRemoteStream = (peerId, stream) => {
+    setRemoteStreams((prev) => ({
+      ...prev,
+      [peerId]: stream,
+    }));
+  };
+
+  // ⭐ NEW: Remove remote stream when peer disconnects
+  const removeRemoteStream = (peerId) => {
+    setRemoteStreams((prev) => {
+      const updated = { ...prev };
+      delete updated[peerId];
+      return updated;
+    });
+  };
+
   useEffect(() => {
     startCamera();
 
-    // Cleanup: stop all tracks when leaving the page
     return () => {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((t) => t.stop());
       }
+
+      // Stop all peer connections
+      Object.values(peersRef.current).forEach((pc) => pc.close());
     };
   }, [onTrackEndWarning]);
 
   return {
-    videoRef,
-    streamRef,
-    restartCamera: startCamera, // used after break to restart camera
+    videoRef,          // local video
+    streamRef,         // local stream
+    remoteStreams,     // ⭐ all remote students' streams
+    peersRef,          // ⭐ WebRTC peer connections
+    addRemoteStream,   // ⭐ add remote stream
+    removeRemoteStream,// ⭐ remove remote stream
+    restartCamera: startCamera,
   };
 }

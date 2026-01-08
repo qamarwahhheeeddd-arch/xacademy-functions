@@ -1,4 +1,6 @@
 // src/pages/ExamPage.jsx
+import { useVideoRoom } from "../hooks/useVideoRoom";
+
 import React, {
   useEffect,
   useRef,
@@ -153,7 +155,26 @@ export default function ExamPage() {
     useAntiCheat(handleMaxWarnings);
 
   // ===== CAMERA =====
-  const { videoRef, streamRef, restartCamera } = useCamera(addWarning);
+  // ===== CAMERA + MULTI-VIDEO =====
+const {
+  videoRef,
+  streamRef,
+  remoteStreams,
+  peersRef,
+  addRemoteStream,
+  removeRemoteStream,
+  restartCamera,
+} = useCamera(addWarning);
+// ===== WEBRTC VIDEO ROOM =====
+useVideoRoom({
+  roomId,
+  userId,
+  streamRef,
+  peersRef,
+  addRemoteStream,
+  removeRemoteStream,
+});
+
 
   // ===== FACE DETECTION =====
   useFaceDetection(videoRef, addWarning, !breakActive);
@@ -500,6 +521,7 @@ export default function ExamPage() {
   return (
     <ExamUI
       videoRef={videoRef}
+      remoteStreams={remoteStreams}
       hearts={hearts}
       warnings={warnings}
       maxWarnings={MAX_WARNINGS}

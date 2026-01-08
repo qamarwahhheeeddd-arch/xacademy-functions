@@ -1,4 +1,4 @@
-// ===============================
+//===============================
 //  GEN2 CLOUD FUNCTIONS (Node 20)
 // ===============================
 const { onRequest } = require("firebase-functions/v2/https");
@@ -8,9 +8,9 @@ if (!admin.apps.length) admin.initializeApp();
 const db = admin.firestore();
 
 // ===============================
-//  JOIN EXAM ROOM (V3) — SYNC READY
+//  JOIN EXAM ROOM (V4) — GLOBAL SYNC + SAFE START
 // ===============================
-exports.joinExamRoomV3 = onRequest({ region: "us-central1" }, async (req, res) => {
+exports.joinExamRoomV4 = onRequest({ region: "us-central1" }, async (req, res) => {
   // -------------------------------
   // MANUAL CORS (Gen2 compatible)
   // -------------------------------
@@ -84,14 +84,16 @@ exports.joinExamRoomV3 = onRequest({ region: "us-central1" }, async (req, res) =
         updatedAt: admin.firestore.Timestamp.now(),
       };
 
-      // ⭐ If room becomes full → start synced exam
+      // ⭐ SAFE START: 5‑second buffer before exam begins
       if (isFull) {
-        updateData.status = "started";
+        const startAt = Date.now() + 5000; // 5 sec buffer
+
+        updateData.status = "starting"; // NEW STATE
+        updateData.examStartAt = admin.firestore.Timestamp.fromMillis(startAt);
+
         updateData.currentQuestion = 0;
         updateData.answers = {};
-        updateData.questionDeadline = admin.firestore.Timestamp.fromMillis(
-          Date.now() + 15000 // 15 sec
-        );
+        updateData.questionDeadline = null; // timer will start at ExamPage
       }
 
       await targetRoom.update(updateData);
@@ -99,7 +101,7 @@ exports.joinExamRoomV3 = onRequest({ region: "us-central1" }, async (req, res) =
       return res.json({
         success: true,
         roomId: targetRoom.id,
-        status: isFull ? "started" : "waiting",
+        status: isFull ? "starting" : "waiting",
         studentsCount: students.length,
       });
     }
@@ -116,7 +118,8 @@ exports.joinExamRoomV3 = onRequest({ region: "us-central1" }, async (req, res) =
       status: "waiting",
       currentQuestion: 0,
       answers: {},
-      questionDeadline: null, // exam not started yet
+      questionDeadline: null,
+      examStartAt: null,
       createdAt: admin.firestore.Timestamp.now(),
     });
 
@@ -128,7 +131,7 @@ exports.joinExamRoomV3 = onRequest({ region: "us-central1" }, async (req, res) =
     });
 
   } catch (err) {
-    console.error("joinExamRoomV3 error:", err.stack || err.message || err);
+    console.error("joinExamRoomV4 error:", err.stack || err.message || err);
     return res.status(500).json({
       success: false,
       error: "Internal server error",

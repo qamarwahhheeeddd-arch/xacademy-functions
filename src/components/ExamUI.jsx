@@ -7,6 +7,7 @@ const MAX_HEARTS = 5;
 
 export default function ExamUI({
   videoRef,
+  remoteStreams,   // ⭐ NEW
   hearts,
   warnings,
   maxWarnings,
@@ -21,7 +22,6 @@ export default function ExamUI({
   showEndOverlay,
   endMessage,
 
-  // ⭐ NEW PROPS (from ExamPage.jsx)
   breakActive,
   breakTimer,
 }) {
@@ -37,23 +37,47 @@ export default function ExamUI({
           Warnings: {warnings}/{maxWarnings}
         </div>
 
-        {/* ⭐ Break ke duran Timer breakTimer show karega */}
         <Timer seconds={breakActive ? breakTimer : questionTimer} />
       </div>
 
-      {/* Camera */}
-      <CameraMonitor videoRef={videoRef} />
+      {/* ⭐ VIDEO GRID (local + remote students) */}
+      <div style={styles.videoGrid}>
+        {/* Local camera */}
+        <div style={styles.videoBox}>
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            style={styles.video}
+          />
+          <p style={styles.videoLabel}>You</p>
+        </div>
+
+        {/* Remote students */}
+        {Object.entries(remoteStreams).map(([peerId, stream]) => (
+          <div key={peerId} style={styles.videoBox}>
+            <video
+              autoPlay
+              playsInline
+              style={styles.video}
+              ref={(el) => {
+                if (el && stream) el.srcObject = stream;
+              }}
+            />
+            <p style={styles.videoLabel}>Student: {peerId}</p>
+          </div>
+        ))}
+      </div>
 
       {/* ⭐ BREAK MODE OR QUESTION MODE */}
       <div style={styles.questionBox}>
         {breakActive ? (
-          // ⭐ BREAK SCREEN (MCQs ki jagah)
           <div style={{ textAlign: "center", padding: "2rem" }}>
             <h2>Short Break</h2>
             <p>Next questions will start in: {breakTimer} sec</p>
           </div>
         ) : (
-          // ⭐ NORMAL MCQ MODE
           <>
             <h3>
               Question {currentIndex + 1} of {totalQuestions}
@@ -106,11 +130,13 @@ const styles = {
     gap: "16px",
     position: "relative",
   },
+
   topBar: {
     display: "flex",
     justifyContent: "space-between",
     gap: "8px",
   },
+
   badge: {
     padding: "8px 12px",
     background: "#111827",
@@ -118,6 +144,40 @@ const styles = {
     border: "1px solid #1f2937",
     fontSize: "14px",
   },
+
+  /* ⭐ VIDEO GRID */
+  videoGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+    gap: "12px",
+    width: "100%",
+  },
+
+  videoBox: {
+    position: "relative",
+    background: "#000",
+    borderRadius: "8px",
+    overflow: "hidden",
+    border: "1px solid #1f2937",
+  },
+
+  video: {
+    width: "100%",
+    height: "140px",
+    objectFit: "cover",
+    background: "#000",
+  },
+
+  videoLabel: {
+    position: "absolute",
+    bottom: "4px",
+    left: "4px",
+    padding: "2px 6px",
+    background: "rgba(0,0,0,0.6)",
+    fontSize: "12px",
+    borderRadius: "4px",
+  },
+
   questionBox: {
     flex: 1,
     background: "#020617",
@@ -128,15 +188,18 @@ const styles = {
     flexDirection: "column",
     gap: "12px",
   },
+
   questionText: {
     fontSize: "16px",
     fontWeight: "500",
   },
+
   optionsBox: {
     display: "flex",
     flexDirection: "column",
     gap: "8px",
   },
+
   optionButton: {
     textAlign: "left",
     padding: "10px 12px",
@@ -146,10 +209,12 @@ const styles = {
     color: "#e5e7eb",
     cursor: "pointer",
   },
+
   selectedOption: {
     background: "#1d4ed8",
     borderColor: "#2563eb",
   },
+
   resultBox: {
     marginTop: "20px",
     padding: "8px",
@@ -158,6 +223,7 @@ const styles = {
     border: "1px solid #1f2937",
     fontSize: "14px",
   },
+
   overlay: {
     position: "fixed",
     inset: 0,
@@ -167,6 +233,7 @@ const styles = {
     justifyContent: "center",
     zIndex: 9999,
   },
+
   overlayBox: {
     background: "#020617",
     padding: "20px",

@@ -9,10 +9,11 @@ export default function WaitingPage() {
 
   const roomId = location.state?.roomId;
   const paperType = location.state?.paperType;
-  const mode = Number(location.state?.mode); // ensure it's a number
+  const mode = Number(location.state?.mode);
 
   const [studentsCount, setStudentsCount] = useState(1);
   const [status, setStatus] = useState("waiting");
+  const [startAt, setStartAt] = useState(null);
 
   useEffect(() => {
     if (!roomId || !paperType || !mode || isNaN(mode)) {
@@ -34,7 +35,23 @@ export default function WaitingPage() {
       setStudentsCount(count);
       setStatus(data.status);
 
-      // ✅ Only start exam when status is "started" AND students are complete
+      // NEW: read examStartAt
+      if (data.examStartAt) {
+        setStartAt(data.examStartAt.toMillis());
+      }
+
+      // ⭐ NEW LOGIC — SAFE START
+      if (data.status === "starting" && count === mode && data.examStartAt) {
+        const now = Date.now();
+
+        if (now >= data.examStartAt.toMillis()) {
+          navigate("/exam", {
+            state: { roomId, paperType, mode }
+          });
+        }
+      }
+
+      // ⭐ BACKWARD COMPATIBILITY (if backend sends "started")
       if (data.status === "started" && count === mode) {
         navigate("/exam", {
           state: { roomId, paperType, mode }
@@ -66,14 +83,20 @@ export default function WaitingPage() {
       <h3 style={{ marginTop: 10 }}>Mode: {mode} Students</h3>
 
       <p style={{ marginTop: 30, fontSize: 18 }}>
-        {status === "started" && studentsCount < mode
-          ? "Group started early — waiting for others..."
+        {status === "starting"
+          ? "Preparing exam… syncing cameras…"
           : "Waiting for other students..."}
       </p>
 
       <p style={{ marginTop: 10, opacity: 0.7 }}>
         {studentsCount} / {mode} joined
       </p>
+
+      {status === "starting" && startAt && (
+        <p style={{ marginTop: 20, opacity: 0.6 }}>
+          Exam starting in a moment…
+        </p>
+      )}
 
       <p style={{ marginTop: 40, opacity: 0.5 }}>Room ID: {roomId}</p>
     </div>
