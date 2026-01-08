@@ -79,22 +79,30 @@ export default function ExamUI({
             <h3>
               Question {currentIndex + 1} of {totalQuestions}
             </h3>
-            <p style={styles.questionText}>{question}</p>
+            <p style={styles.questionText}>
+  {question || "Loading question..."}
+</p>
 
-            <div style={styles.optionsBox}>
-              {options.map((opt) => (
-                <button
-                  key={opt}
-                  style={{
-                    ...styles.optionButton,
-                    ...(selectedOption === opt ? styles.selectedOption : {}),
-                  }}
-                  onClick={() => onOptionClick(opt)}
-                >
-                  {opt}
-                </button>
-              ))}
-            </div>
+
+           <div style={styles.optionsBox}>
+  {Array.isArray(options) && options.length > 0 ? (
+    options.map((opt) => (
+      <button
+        key={opt}
+        style={{
+          ...styles.optionButton,
+          ...(selectedOption === opt ? styles.selectedOption : {}),
+        }}
+        onClick={() => onOptionClick(opt)}
+      >
+        {opt}
+      </button>
+    ))
+  ) : (
+    <p style={{ opacity: 0.6 }}>No options available</p>
+  )}
+</div>
+
 
             <div style={styles.resultBox}>
               <p>
