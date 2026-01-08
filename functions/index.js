@@ -8,7 +8,7 @@ if (!admin.apps.length) admin.initializeApp();
 const db = admin.firestore();
 
 // ===============================
-//  JOIN EXAM ROOM (V4) — GLOBAL SYNC + SAFE START
+//  JOIN EXAM ROOM (V4) — CLEAN + NO DELAY
 // ===============================
 exports.joinExamRoomV4 = onRequest({ region: "us-central1" }, async (req, res) => {
   // -------------------------------
@@ -82,18 +82,14 @@ exports.joinExamRoomV4 = onRequest({ region: "us-central1" }, async (req, res) =
       const updateData = {
         students,
         updatedAt: admin.firestore.Timestamp.now(),
+        currentQuestion: 0,
+        answers: {},
+        questionDeadline: null,
       };
 
-      // ⭐ SAFE START: 5‑second buffer before exam begins
+      // ⭐ INSTANT START — NO DELAY
       if (isFull) {
-        const startAt = Date.now() + 5000; // 5 sec buffer
-
-        updateData.status = "starting"; // NEW STATE
-        updateData.examStartAt = admin.firestore.Timestamp.fromMillis(startAt);
-
-        updateData.currentQuestion = 0;
-        updateData.answers = {};
-        updateData.questionDeadline = null; // timer will start at ExamPage
+        updateData.status = "started";
       }
 
       await targetRoom.update(updateData);
@@ -101,7 +97,7 @@ exports.joinExamRoomV4 = onRequest({ region: "us-central1" }, async (req, res) =
       return res.json({
         success: true,
         roomId: targetRoom.id,
-        status: isFull ? "starting" : "waiting",
+        status: isFull ? "started" : "waiting",
         studentsCount: students.length,
       });
     }
