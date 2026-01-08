@@ -2,7 +2,9 @@
 import React from "react";
 
 export default function Timer({ seconds }) {
-  const secs = seconds.toString().padStart(2, "0");
+  const safeSeconds = typeof seconds === "number" ? seconds : 0;
+const secs = safeSeconds.toString().padStart(2, "0");
+
 
   return (
     <div style={styles.badge}>
