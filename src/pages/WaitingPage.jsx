@@ -1,3 +1,4 @@
+// src/pages/WaitingPage.jsx
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { doc, onSnapshot } from "firebase/firestore";
@@ -13,7 +14,7 @@ export default function WaitingPage() {
 
   const [studentsCount, setStudentsCount] = useState(1);
   const [status, setStatus] = useState("waiting");
-  const [startAt, setStartAt] = useState(null);
+  const [students, setStudents] = useState([]);
 
   useEffect(() => {
     if (!roomId || !paperType || !mode || isNaN(mode)) {
@@ -28,39 +29,23 @@ export default function WaitingPage() {
 
       const data = snap.data();
 
-      const count = Array.isArray(data.students)
-        ? data.students.filter(Boolean).length
-        : 0;
+      const list = Array.isArray(data.students)
+        ? data.students.filter(Boolean)
+        : [];
 
-      setStudentsCount(count);
+      setStudents(list);
+      setStudentsCount(list.length);
       setStatus(data.status);
 
-      // NEW: read examStartAt
-      //if (data.examStartAt) {
-        //setStartAt(data.examStartAt.toMillis());
-      //}
-
-      // ⭐ NEW LOGIC — SAFE START
-      //if (data.status === "starting" && count === mode && data.examStartAt) {
-       // const now = Date.now();
-
-        //if (now >= data.examStartAt.toMillis()) {
-          //navigate("/exam", {
-            //state: { roomId, paperType, mode }
-          //});
-       // }
-      //}
-// ✅ INSTANT START — NO DELAY
-if (data.status === "started" && count === mode) {
-  navigate("/exam", {
-    state: { roomId, paperType, mode }
-  });
-}
-
-      // ⭐ BACKWARD COMPATIBILITY (if backend sends "started")
-      if (data.status === "started" && count === mode) {
+      // ⭐ MAIN LOGIC — Start exam when room is full
+      if (data.status === "started" && list.length === mode) {
         navigate("/exam", {
-          state: { roomId, paperType, mode }
+          state: {
+            roomId,
+            paperType,
+            mode,
+            students: list, // ⭐ PASS STUDENTS LIST TO EXAMPAGE
+          },
         });
       }
     });
@@ -79,7 +64,7 @@ if (data.status === "started" && count === mode) {
         justifyContent: "center",
         alignItems: "center",
         textAlign: "center",
-        padding: 20
+        padding: 20,
       }}
     >
       <h2 style={{ color: "#FFD700" }}>
@@ -97,12 +82,6 @@ if (data.status === "started" && count === mode) {
       <p style={{ marginTop: 10, opacity: 0.7 }}>
         {studentsCount} / {mode} joined
       </p>
-
-      {status === "starting" && startAt && (
-        <p style={{ marginTop: 20, opacity: 0.6 }}>
-          Exam starting in a moment…
-        </p>
-      )}
 
       <p style={{ marginTop: 40, opacity: 0.5 }}>Room ID: {roomId}</p>
     </div>

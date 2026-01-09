@@ -127,15 +127,26 @@ export default function ExamPage() {
     restartCamera,
   } = useCamera(() => {});
 
-  // ===== WEBRTC HOOK (TOP LEVEL — SAFE) =====
-  useVideoRoom({
-    roomId,
-    userId,
-    streamRef,
-    peersRef,
-    addRemoteStream,
-    removeRemoteStream,
-  });
+  //..................
+  useEffect(() => {
+  const interval = setInterval(() => {
+    if (streamRef.current) {
+      clearInterval(interval);
+
+      useVideoRoom({
+        roomId,
+        userId,
+        streamRef,
+        peersRef,
+        addRemoteStream,
+        removeRemoteStream,
+        students: roomData.students,
+      });
+    }
+  }, 200);
+}, []);
+
+
 
   // ===== STATES =====
   const [questions, setQuestions] = useState([]);
