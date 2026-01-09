@@ -37,21 +37,20 @@ export default function WaitingPage() {
       setStudentsCount(list.length);
       setStatus(data.status);
 
-      // ⭐ MAIN LOGIC — Start exam when room is full
       if (data.status === "started" && list.length === mode) {
         navigate("/exam", {
           state: {
             roomId,
             paperType,
             mode,
-            students: list, // ⭐ PASS STUDENTS LIST TO EXAMPAGE
+            students: list,
           },
         });
       }
     });
 
     return () => unsub();
-  }, []);
+  }, [roomId, paperType, mode, navigate]);
 
   return (
     <div

@@ -5,10 +5,7 @@ export function useCamera(onTrackEndWarning) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
 
-  // ⭐ NEW: remote students ki video streams
   const [remoteStreams, setRemoteStreams] = useState({});
-
-  // ⭐ NEW: WebRTC peer connections
   const peersRef = useRef({});
 
   const startCamera = async () => {
@@ -24,7 +21,6 @@ export function useCamera(onTrackEndWarning) {
         videoRef.current.srcObject = stream;
       }
 
-      // Camera/mic stop warning
       stream.getTracks().forEach((track) => {
         track.onended = () => {
           if (onTrackEndWarning) {
@@ -50,7 +46,6 @@ export function useCamera(onTrackEndWarning) {
     }
   };
 
-  // ⭐ NEW: Add remote stream from WebRTC peer
   const addRemoteStream = (peerId, stream) => {
     setRemoteStreams((prev) => ({
       ...prev,
@@ -58,7 +53,6 @@ export function useCamera(onTrackEndWarning) {
     }));
   };
 
-  // ⭐ NEW: Remove remote stream when peer disconnects
   const removeRemoteStream = (peerId) => {
     setRemoteStreams((prev) => {
       const updated = { ...prev };
@@ -75,18 +69,17 @@ export function useCamera(onTrackEndWarning) {
         streamRef.current.getTracks().forEach((t) => t.stop());
       }
 
-      // Stop all peer connections
       Object.values(peersRef.current).forEach((pc) => pc.close());
     };
   }, [onTrackEndWarning]);
 
   return {
-    videoRef,          // local video
-    streamRef,         // local stream
-    remoteStreams,     // ⭐ all remote students' streams
-    peersRef,          // ⭐ WebRTC peer connections
-    addRemoteStream,   // ⭐ add remote stream
-    removeRemoteStream,// ⭐ remove remote stream
+    videoRef,
+    streamRef,
+    remoteStreams,
+    peersRef,
+    addRemoteStream,
+    removeRemoteStream,
     restartCamera: startCamera,
   };
 }

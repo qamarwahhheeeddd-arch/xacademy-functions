@@ -7,14 +7,13 @@ import React, {
   useState,
 } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { doc, onSnapshot, updateDoc } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc, runTransaction } from "firebase/firestore";
 import { db } from "../firebase";
 
 import ExamUI from "../components/ExamUI";
 import BreakScreen from "../components/BreakScreen";
 import { useCamera } from "../hooks/useCamera";
 
-// ====== MCQ SETS ======
 import { medBiologyB1 } from "../Paper data/Medical paper/Biology/B1";
 import { medBiologyB2 } from "../Paper data/Medical paper/Biology/B2";
 import { medBiologyB3 } from "../Paper data/Medical paper/Biology/B3";
@@ -75,12 +74,10 @@ import { engNewsN3 } from "../Paper data/Engineering paper/News/N3";
 import { engNewsN4 } from "../Paper data/Engineering paper/News/N4";
 import { engNewsN5 } from "../Paper data/Engineering paper/News/N5";
 
-// ====== CONSTANTS ======
 const MAX_HEARTS = 5;
 const QUESTION_TIME_SECONDS = 15;
 const BREAK_SECONDS = 10;
 
-// ====== HELPERS ======
 function shuffle(array) {
   const arr = [...array];
   for (let i = arr.length - 1; i > 0; i--) {
@@ -104,7 +101,6 @@ function getOrCreateUserId() {
   return id;
 }
 
-// ====== COMPONENT ======
 export default function ExamPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -112,10 +108,10 @@ export default function ExamPage() {
   const paperType = location.state?.paperType;
   const mode = Number(location.state?.mode || 2);
   const roomId = location.state?.roomId;
+  const initialStudents = location.state?.students || [];
 
   const userId = getOrCreateUserId();
 
-  // ===== CAMERA + MULTI-VIDEO =====
   const {
     videoRef,
     streamRef,
@@ -126,7 +122,6 @@ export default function ExamPage() {
     restartCamera,
   } = useCamera(() => {});
 
-  // ===== STATES =====
   const [questions, setQuestions] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState(null);
@@ -146,7 +141,6 @@ export default function ExamPage() {
 
   const [roomData, setRoomData] = useState(null);
 
-  // ===== LOAD QUESTIONS =====
   useEffect(() => {
     let examSeq = [];
 
@@ -181,7 +175,6 @@ export default function ExamPage() {
     setQuestions(examSeq);
   }, [paperType]);
 
-  // ===== ROOM LISTENER =====
   useEffect(() => {
     if (!roomId) return;
 
@@ -210,24 +203,22 @@ export default function ExamPage() {
     return () => unsub();
   }, [roomId]);
 
-  // ===== START WEBRTC ONCE STREAM + ROOMDATA READY =====
-  useEffect(() => {
-    if (!roomId || !userId) return;
-    if (!streamRef.current) return;
-    if (!roomData || !Array.isArray(roomData.students)) return;
+  const effectiveStudents =
+    (roomData && Array.isArray(roomData.students) && roomData.students.length > 0
+      ? roomData.students
+      : initialStudents
+    ).filter(Boolean);
 
-    useVideoRoom({
-      roomId,
-      userId,
-      streamRef,
-      peersRef,
-      addRemoteStream,
-      removeRemoteStream,
-      students: roomData.students,
-    });
-  }, [roomId, userId, streamRef, roomData, peersRef, addRemoteStream, removeRemoteStream]);
+  useVideoRoom({
+    roomId,
+    userId,
+    streamRef,
+    peersRef,
+    addRemoteStream,
+    removeRemoteStream,
+    students: effectiveStudents,
+  });
 
-  // ===== LOCAL TIMER =====
   useEffect(() => {
     if (breakActive || examEnded) return;
     if (questionTimer <= 0) return;
@@ -239,7 +230,6 @@ export default function ExamPage() {
     return () => clearInterval(interval);
   }, [questionTimer, breakActive, examEnded]);
 
-  // ===== ANSWER CLICK =====
   async function handleOptionClick(option) {
     if (examEnded || breakActive) return;
     if (!roomId || !roomData) return;
@@ -266,13 +256,11 @@ export default function ExamPage() {
 
     const ref = doc(db, "examRooms", roomId);
 
-    // 🔥 SAFE, NO failed-precondition
     await updateDoc(ref, {
       [`answers.${userId}`]: option,
     });
   }
 
-  // ===== ADVANCE QUESTION =====
   useEffect(() => {
     if (!roomData || !roomId || examEnded) return;
     if (!roomData.students || !Array.isArray(roomData.students)) return;
@@ -294,19 +282,43 @@ export default function ExamPage() {
     if (!allAnswered && !timeOver) return;
 
     advanceQuestion(students, answers, timeOver);
-  }, [roomData, examEnded]);
+  }, [roomData, examEnded, roomId, userId, questions.length]);
 
   async function advanceQuestion(students, answers, timeOver) {
     if (!roomId) return;
 
     const ref = doc(db, "examRooms", roomId);
 
-    const snap = await onSnapshot(ref, () => {});
-    // (You can keep your previous transaction logic here if needed,
-    // but it's not directly related to the video issue.)
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists()) return;
+      const data = snap.data();
+
+      const currentQ = data.currentQuestion || 0;
+      const totalQuestions = questions.length;
+
+      const nextQ = currentQ + 1;
+
+      if (nextQ >= totalQuestions) {
+        tx.update(ref, {
+          currentQuestion: currentQ,
+          status: "finished",
+        });
+        return;
+      }
+
+      const newDeadline = new Date(
+        Date.now() + QUESTION_TIME_SECONDS * 1000
+      );
+
+      tx.update(ref, {
+        currentQuestion: nextQ,
+        questionDeadline: newDeadline,
+        answers: {},
+      });
+    });
   }
 
-  // ===== BREAK LOGIC =====
   useEffect(() => {
     if (!breakActive) return;
     if (breakTimer <= 0) {
@@ -322,7 +334,6 @@ export default function ExamPage() {
     return () => clearInterval(interval);
   }, [breakActive, breakTimer, restartCamera]);
 
-  // ===== END EXAM =====
   function endExam(reason) {
     if (hasSubmittedRef.current) return;
     hasSubmittedRef.current = true;
@@ -346,7 +357,6 @@ export default function ExamPage() {
     setTimeout(() => navigate("/"), 3000);
   }
 
-  // ===== SAFETY GUARDS =====
   if (!roomData) {
     return <div style={{ color: "white", padding: 20 }}>Loading room...</div>;
   }
@@ -355,7 +365,6 @@ export default function ExamPage() {
     return <div style={{ color: "white", padding: 20 }}>Loading question...</div>;
   }
 
-  // ===== UI RENDER =====
   const currentQ = questions[currentIndex];
 
   return (
