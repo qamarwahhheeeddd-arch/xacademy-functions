@@ -121,6 +121,7 @@ export default function ExamPage() {
     removeRemoteStream,
     restartCamera,
   } = useCamera(() => {});
+  const cameraReady = !!streamRef.current;
 
   const [questions, setQuestions] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -217,6 +218,7 @@ export default function ExamPage() {
     addRemoteStream,
     removeRemoteStream,
     students: effectiveStudents,
+    cameraReady, // ⭐ NEW
   });
 
   useEffect(() => {
