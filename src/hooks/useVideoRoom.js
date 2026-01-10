@@ -229,10 +229,7 @@ export function useVideoRoom({
 
         try {
           if (!pc.remoteDescription) {
-            console.warn(
-              "Skipping ICE, remoteDescription null for",
-              fromId
-            );
+            console.warn("Skipping ICE, remoteDescription null for", fromId);
             continue;
           }
 
@@ -244,10 +241,9 @@ export function useVideoRoom({
       }
     });
 
-   // TEMP: Always be caller if any peers exist
-const amICaller = peerIds.length > 0;
+    // For now, always act as caller if any peers exist
+    const amICaller = peerIds.length > 0;
 
-    // Create offers FROM me → others
     const initOffers = async () => {
       if (!amICaller) {
         console.log("Not caller, skipping offer creation");
@@ -305,6 +301,6 @@ const amICaller = peerIds.length > 0;
     peersRef,
     addRemoteStream,
     removeRemoteStream,
-    JSON.stringify(students),
+    // students dependency intentionally removed to avoid remount loops
   ]);
 }
