@@ -32,6 +32,19 @@ export function useVideoRoom({
     }
 
     const peerIds = students.filter((id) => id && id !== userId);
+     // 🔍 ADD THIS BLOCK HERE
+  console.log(
+    "useVideoRoom: students list =",
+    students,
+    "userId =",
+    userId,
+    "peerIds =",
+    peerIds
+  );
+  if (peerIds.length === 0) {
+    console.warn("useVideoRoom: no valid peers to connect to");
+    return;
+  }
     if (peerIds.length === 0) {
       console.warn("useVideoRoom: no valid peers to connect to");
       return;
