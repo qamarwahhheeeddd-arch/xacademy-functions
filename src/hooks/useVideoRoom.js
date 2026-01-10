@@ -338,13 +338,6 @@ export function useVideoRoom({
       unsubAnswers();
       unsubCandidates();
     };
-  }, [
-    roomId,
-    userId,
-    streamRef,
-    peersRef,
-    addRemoteStream,
-    removeRemoteStream,
-    // students dependency intentionally removed to avoid remount loops
-  ]);
+  },
+    [roomId, userId]);
 }
