@@ -130,17 +130,21 @@ export function useVideoRoom({
 
       pc.onconnectionstatechange = () => {
         console.log("Connection state with", peerId, "=>", pc.connectionState);
-        if (
-          pc.connectionState === "disconnected" ||
-          pc.connectionState === "failed" ||
-          pc.connectionState === "closed"
-        ) {
-          try {
-            pc.close();
-          } catch (_) {}
-          delete peersRef.current[peerId];
-          removeRemoteStream(peerId);
-        }
+       pc.onconnectionstatechange = () => {
+  console.log("Connection state with", peerId, "=>", pc.connectionState);
+
+  if (pc.connectionState === "failed") {
+    console.warn("PC failed, closing for", peerId);
+    pc.close();
+    delete peersRef.current[peerId];
+    removeRemoteStream(peerId);
+  }
+
+  // ❌ DO NOT close on "disconnected"
+  // Mobile browsers often go "disconnected" briefly during ICE gathering
+};
+ 
+        
       };
 
       return pc;
