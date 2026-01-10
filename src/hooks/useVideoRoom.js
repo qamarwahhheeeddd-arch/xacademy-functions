@@ -331,13 +331,11 @@ export function useVideoRoom({
 
     initOffers();
 
-
-    return () => {
+        return () => {
       console.log("Cleaning up useVideoRoom listeners");
       unsubOffers();
       unsubAnswers();
       unsubCandidates();
     };
-  },
-    [roomId, userId]);
+  }, [roomId, userId]); // ✅ sirf roomId + userId
 }
