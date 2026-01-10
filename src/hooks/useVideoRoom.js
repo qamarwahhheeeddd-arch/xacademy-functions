@@ -178,7 +178,22 @@ export function useVideoRoom({
 
           console.log("Received offer from", fromId);
 
-          const pc = createPeerConnection(fromId);
+          let pc = createPeerConnection(fromId);
+
+          // 🔥 Glare safety: if we already sent an offer and are not stable, reset PC
+          if (pc.signalingState !== "stable") {
+            console.warn(
+              "Offer glare detected from",
+              fromId,
+              "resetting PC. Current state:",
+              pc.signalingState
+            );
+            try {
+              pc.close();
+            } catch (_) {}
+            delete peersRef.current[fromId];
+            pc = createPeerConnection(fromId);
+          }
 
           try {
             await pc.setRemoteDescription(
@@ -262,6 +277,16 @@ export function useVideoRoom({
             continue;
           }
 
+          // 🔥 Extra safety: don't add ICE to closed/broken PC
+          if (pc.signalingState === "closed") {
+            console.warn(
+              "Skipping ICE for",
+              fromId,
+              "because signalingState is closed"
+            );
+            continue;
+          }
+
           try {
             if (!pc.remoteDescription) {
               console.warn(
@@ -279,8 +304,19 @@ export function useVideoRoom({
         }
       });
 
-      // For now, always act as caller if any peers exist
-      const amICaller = peerIds.length > 0;
+      // 🔥 Only ONE side should be caller to avoid glare
+      // Decide caller deterministically: smallest userId in students
+      const sorted = [...students].filter(Boolean).sort();
+      const leaderId = sorted[0];
+      const amICaller = leaderId === userId;
+
+      console.log("Caller decision:", {
+        students,
+        sorted,
+        leaderId,
+        userId,
+        amICaller,
+      });
 
       const initOffers = async () => {
         if (!amICaller) {
