@@ -54,7 +54,19 @@ export function useVideoRoom({
     const candidatesCol = collection(roomRef, "webrtcCandidates");
 
     const createPeerConnection = (peerId) => {
-      if (peersRef.current[peerId]) return peersRef.current[peerId];
+      const existing = peersRef.current[peerId];
+
+      if (existing && existing.signalingState !== "closed") {
+        return existing;
+      }
+
+      if (existing && existing.signalingState === "closed") {
+        console.warn("PeerConnection was closed, recreating for", peerId);
+        try {
+          existing.close();
+        } catch (_) {}
+        delete peersRef.current[peerId];
+      }
 
       console.log("Creating RTCPeerConnection for peer:", peerId);
 
@@ -64,14 +76,12 @@ export function useVideoRoom({
 
       peersRef.current[peerId] = pc;
 
-      // Attach local tracks
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => {
           pc.addTrack(track, streamRef.current);
         });
       }
 
-      // Remote tracks
       pc.ontrack = (event) => {
         const [remoteStream] = event.streams;
         if (remoteStream) {
@@ -80,7 +90,6 @@ export function useVideoRoom({
         }
       };
 
-      // ICE candidates → Firestore
       pc.onicecandidate = async (event) => {
         if (!event.candidate) return;
         try {
@@ -107,7 +116,9 @@ export function useVideoRoom({
           pc.connectionState === "failed" ||
           pc.connectionState === "closed"
         ) {
-          pc.close();
+          try {
+            pc.close();
+          } catch (_) {}
           delete peersRef.current[peerId];
           removeRemoteStream(peerId);
         }
@@ -217,6 +228,14 @@ export function useVideoRoom({
         }
 
         try {
+          if (!pc.remoteDescription) {
+            console.warn(
+              "Skipping ICE, remoteDescription null for",
+              fromId
+            );
+            continue;
+          }
+
           await pc.addIceCandidate(new RTCIceCandidate(candidate));
           console.log("Added ICE candidate from", fromId);
         } catch (err) {
@@ -225,12 +244,32 @@ export function useVideoRoom({
       }
     });
 
+    // Only one side should create offers (simple deterministic caller)
+    const amICaller =
+      peerIds.length > 0 &&
+      userId === [...peerIds].sort()[0];
+
     // Create offers FROM me → others
     const initOffers = async () => {
-      for (const peerId of peerIds) {
-        console.log("Creating offer to", peerId);
+      if (!amICaller) {
+        console.log("Not caller, skipping offer creation");
+        return;
+      }
 
+      for (const peerId of peerIds) {
         const pc = createPeerConnection(peerId);
+
+        if (pc.signalingState !== "stable") {
+          console.warn(
+            "Skipping offer to",
+            peerId,
+            "because signalingState is",
+            pc.signalingState
+          );
+          continue;
+        }
+
+        console.log("Creating offer to", peerId);
 
         try {
           const offer = await pc.createOffer();
