@@ -51,20 +51,39 @@ export default function ExamUI({
           <p style={styles.videoLabel}>You</p>
         </div>
 
-        {/* Remote students */}
-        {Object.entries(remoteStreams).map(([peerId, stream]) => (
-          <div key={peerId} style={styles.videoBox}>
-            <video
-              autoPlay
-              playsInline
-              style={styles.video}
-              ref={(el) => {
-                if (el && stream) el.srcObject = stream;
-              }}
-            />
-            <p style={styles.videoLabel}>Student: {peerId}</p>
-          </div>
-        ))}
+       {Object.entries(remoteStreams).map(([peerId, stream]) => (
+  <div key={peerId} style={styles.videoBox}>
+    <video
+      autoPlay
+      playsInline
+      muted={true} // 🔹 test ke liye muted rakho, autoplay mobile pe easy ho jata hai
+      style={styles.video}
+      ref={(el) => {
+        if (el && stream) {
+          // Bind stream
+          if (el.srcObject !== stream) {
+            el.srcObject = stream;
+          }
+
+          // Force play (especially for mobile)
+          const playPromise = el.play();
+          if (playPromise && typeof playPromise.then === "function") {
+            playPromise
+              .then(() => {
+                // console.log("Remote video playing for", peerId);
+              })
+              .catch((err) => {
+                console.warn("Remote video play() failed for", peerId, err);
+              });
+          }
+        }
+      }}
+    />
+    <p style={styles.videoLabel}>Student: {peerId}</p>
+  </div>
+))}
+
+        
       </div>
 
       {/* ⭐ BREAK MODE OR QUESTION MODE */}
