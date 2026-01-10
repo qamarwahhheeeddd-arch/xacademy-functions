@@ -32,19 +32,16 @@ export function useVideoRoom({
     }
 
     const peerIds = students.filter((id) => id && id !== userId);
-     // 🔍 ADD THIS BLOCK HERE
-  console.log(
-    "useVideoRoom: students list =",
-    students,
-    "userId =",
-    userId,
-    "peerIds =",
-    peerIds
-  );
-  if (peerIds.length === 0) {
-    console.warn("useVideoRoom: no valid peers to connect to");
-    return;
-  }
+
+    console.log(
+      "useVideoRoom: students list =",
+      students,
+      "userId =",
+      userId,
+      "peerIds =",
+      peerIds
+    );
+
     if (peerIds.length === 0) {
       console.warn("useVideoRoom: no valid peers to connect to");
       return;
@@ -70,12 +67,14 @@ export function useVideoRoom({
     const createPeerConnection = (peerId) => {
       const existing = peersRef.current[peerId];
 
+      // Reuse existing live PC
       if (existing && existing.signalingState !== "closed") {
         return existing;
       }
 
+      // Clean up closed PC if present
       if (existing && existing.signalingState === "closed") {
-        console.warn("PeerConnection was closed, recreating for", peerId);
+        console.warn("PeerConnection was closed, cleaning up for", peerId);
         try {
           existing.close();
         } catch (_) {}
@@ -90,6 +89,7 @@ export function useVideoRoom({
 
       peersRef.current[peerId] = pc;
 
+      // Attach local tracks
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => {
           pc.addTrack(track, streamRef.current);
@@ -101,6 +101,7 @@ export function useVideoRoom({
         );
       }
 
+      // Remote stream handler
       pc.ontrack = (event) => {
         const [remoteStream] = event.streams;
         if (remoteStream) {
@@ -109,6 +110,7 @@ export function useVideoRoom({
         }
       };
 
+      // ICE candidate sender
       pc.onicecandidate = async (event) => {
         if (!event.candidate) return;
         try {
@@ -128,23 +130,23 @@ export function useVideoRoom({
         }
       };
 
+      // ✅ Only close on "failed" — DO NOT close on "disconnected"
       pc.onconnectionstatechange = () => {
-        console.log("Connection state with", peerId, "=>", pc.connectionState);
-       pc.onconnectionstatechange = () => {
-  console.log("Connection state with", peerId, "=>", pc.connectionState);
+        console.log(
+          "Connection state with",
+          peerId,
+          "=>",
+          pc.connectionState
+        );
 
-  if (pc.connectionState === "failed") {
-    console.warn("PC failed, closing for", peerId);
-    pc.close();
-    delete peersRef.current[peerId];
-    removeRemoteStream(peerId);
-  }
-
-  // ❌ DO NOT close on "disconnected"
-  // Mobile browsers often go "disconnected" briefly during ICE gathering
-};
- 
-        
+        if (pc.connectionState === "failed") {
+          console.warn("PC failed, closing for", peerId);
+          try {
+            pc.close();
+          } catch (_) {}
+          delete peersRef.current[peerId];
+          removeRemoteStream(peerId);
+        }
       };
 
       return pc;
@@ -327,17 +329,23 @@ export function useVideoRoom({
 
     // Wait for local stream to be ready
     if (!streamRef.current) {
-      console.warn("useVideoRoom: local stream not ready yet, starting watcher");
+      console.warn(
+        "useVideoRoom: local stream not ready yet, starting watcher"
+      );
       streamCheckInterval = setInterval(() => {
         if (streamRef.current) {
-          console.log("useVideoRoom: local stream is now ready, initializing");
+          console.log(
+            "useVideoRoom: local stream is now ready, initializing"
+          );
           clearInterval(streamCheckInterval);
           streamCheckInterval = null;
           setupSignaling();
         }
       }, 500);
     } else {
-      console.log("useVideoRoom: local stream already ready, initializing immediately");
+      console.log(
+        "useVideoRoom: local stream already ready, initializing immediately"
+      );
       setupSignaling();
     }
 
@@ -350,5 +358,5 @@ export function useVideoRoom({
       if (answersUnsub) answersUnsub();
       if (candidatesUnsub) candidatesUnsub();
     };
-  }, [roomId, userId]); // ✅ sirf roomId + userId pe depend
+  }, [roomId, userId]); // ✅ sirf roomId + userId
 }
