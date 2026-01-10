@@ -1,4 +1,3 @@
-// src/hooks/useVideoRoom.js
 import { useEffect } from "react";
 import { db } from "../firebase";
 import {
@@ -21,31 +20,10 @@ export function useVideoRoom({
   students = [],
 }) {
   useEffect(() => {
-    if (!roomId || !userId) {
-      console.warn("useVideoRoom: missing roomId or userId");
-      return;
-    }
-
-    if (!Array.isArray(students) || students.length === 0) {
-      console.warn("useVideoRoom: no students list, skipping");
-      return;
-    }
+    if (!roomId || !userId || !Array.isArray(students)) return;
 
     const peerIds = students.filter((id) => id && id !== userId);
-
-    console.log(
-      "useVideoRoom: students list =",
-      students,
-      "userId =",
-      userId,
-      "peerIds =",
-      peerIds
-    );
-
-    if (peerIds.length === 0) {
-      console.warn("useVideoRoom: no valid peers to connect to");
-      return;
-    }
+    if (peerIds.length === 0) return;
 
     console.log("useVideoRoom: starting watcher for", {
       roomId,
@@ -66,42 +44,35 @@ export function useVideoRoom({
 
     const createPeerConnection = (peerId) => {
       const existing = peersRef.current[peerId];
+      if (existing && existing.signalingState !== "closed") return existing;
 
-      // Reuse existing live PC
-      if (existing && existing.signalingState !== "closed") {
-        return existing;
-      }
-
-      // Clean up closed PC if present
-      if (existing && existing.signalingState === "closed") {
-        console.warn("PeerConnection was closed, cleaning up for", peerId);
+      if (existing) {
         try {
           existing.close();
         } catch (_) {}
         delete peersRef.current[peerId];
       }
 
-      console.log("Creating RTCPeerConnection for peer:", peerId);
-
       const pc = new RTCPeerConnection({
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" },
+          // 🔥 Optional TURN server (add if needed)
+          // {
+          //   urls: "turn:your.turn.server:3478",
+          //   username: "yourUsername",
+          //   credential: "yourPassword",
+          // },
+        ],
       });
 
       peersRef.current[peerId] = pc;
 
-      // Attach local tracks
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => {
           pc.addTrack(track, streamRef.current);
         });
-      } else {
-        console.warn(
-          "createPeerConnection: streamRef.current missing while creating PC for",
-          peerId
-        );
       }
 
-      // Remote stream handler
       pc.ontrack = (event) => {
         const [remoteStream] = event.streams;
         if (remoteStream) {
@@ -110,18 +81,16 @@ export function useVideoRoom({
         }
       };
 
-      // ICE candidate sender
       pc.onicecandidate = async (event) => {
         if (!event.candidate) return;
         try {
-          const c = event.candidate;
           await addDoc(candidatesCol, {
             from: userId,
             to: peerId,
             candidate: {
-              candidate: c.candidate,
-              sdpMid: c.sdpMid,
-              sdpMLineIndex: c.sdpMLineIndex,
+              candidate: event.candidate.candidate,
+              sdpMid: event.candidate.sdpMid,
+              sdpMLineIndex: event.candidate.sdpMLineIndex,
             },
             createdAt: serverTimestamp(),
           });
@@ -130,17 +99,9 @@ export function useVideoRoom({
         }
       };
 
-      // ✅ Only close on "failed" — DO NOT close on "disconnected"
       pc.onconnectionstatechange = () => {
-        console.log(
-          "Connection state with",
-          peerId,
-          "=>",
-          pc.connectionState
-        );
-
+        console.log("Connection state with", peerId, "=>", pc.connectionState);
         if (pc.connectionState === "failed") {
-          console.warn("PC failed, closing for", peerId);
           try {
             pc.close();
           } catch (_) {}
@@ -156,11 +117,11 @@ export function useVideoRoom({
       if (initialized) return;
       initialized = true;
 
-      console.log("useVideoRoom: initializing signaling for", {
-        roomId,
-        userId,
-        peers: peerIds,
-      });
+      // 🔥 Deterministic caller logic
+      const sorted = [...students].filter(Boolean).sort();
+      const leaderId = sorted[0];
+      const amICaller = leaderId === userId;
+      console.log("Caller decision:", { leaderId, userId, amICaller });
 
       // Listen for offers TO me
       const offersQ = query(offersCol, where("to", "==", userId));
@@ -171,23 +132,11 @@ export function useVideoRoom({
           const fromId = data.from;
           const offer = data.offer;
 
-          if (!offer || !offer.type || !offer.sdp) {
-            console.warn("Invalid offer data from", fromId, offer);
-            continue;
-          }
-
-          console.log("Received offer from", fromId);
+          if (!offer?.type || !offer?.sdp) continue;
 
           let pc = createPeerConnection(fromId);
 
-          // 🔥 Glare safety: if we already sent an offer and are not stable, reset PC
           if (pc.signalingState !== "stable") {
-            console.warn(
-              "Offer glare detected from",
-              fromId,
-              "resetting PC. Current state:",
-              pc.signalingState
-            );
             try {
               pc.close();
             } catch (_) {}
@@ -196,12 +145,7 @@ export function useVideoRoom({
           }
 
           try {
-            await pc.setRemoteDescription(
-              new RTCSessionDescription({
-                type: offer.type,
-                sdp: offer.sdp,
-              })
-            );
+            await pc.setRemoteDescription(new RTCSessionDescription(offer));
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
 
@@ -231,26 +175,11 @@ export function useVideoRoom({
           const fromId = data.from;
           const answer = data.answer;
 
-          if (!answer || !answer.type || !answer.sdp) {
-            console.warn("Invalid answer data from", fromId, answer);
-            continue;
-          }
-
-          console.log("Received answer from", fromId);
-
           const pc = peersRef.current[fromId];
-          if (!pc) {
-            console.warn("No peerConnection for", fromId);
-            continue;
-          }
+          if (!pc || !answer?.type || !answer?.sdp) continue;
 
           try {
-            await pc.setRemoteDescription(
-              new RTCSessionDescription({
-                type: answer.type,
-                sdp: answer.sdp,
-              })
-            );
+            await pc.setRemoteDescription(new RTCSessionDescription(answer));
           } catch (err) {
             console.error("Error setting remote answer from", fromId, err);
           }
@@ -267,35 +196,10 @@ export function useVideoRoom({
           const candidate = data.candidate;
 
           const pc = peersRef.current[fromId];
-          if (!pc) {
-            console.warn("No peerConnection for ICE from", fromId);
-            continue;
-          }
-
-          if (!candidate || !candidate.candidate) {
-            console.warn("Invalid ICE candidate from", fromId, candidate);
-            continue;
-          }
-
-          // 🔥 Extra safety: don't add ICE to closed/broken PC
-          if (pc.signalingState === "closed") {
-            console.warn(
-              "Skipping ICE for",
-              fromId,
-              "because signalingState is closed"
-            );
-            continue;
-          }
+          if (!pc || pc.signalingState === "closed") continue;
+          if (!candidate?.candidate || !pc.remoteDescription) continue;
 
           try {
-            if (!pc.remoteDescription) {
-              console.warn(
-                "Skipping ICE, remoteDescription null for",
-                fromId
-              );
-              continue;
-            }
-
             await pc.addIceCandidate(new RTCIceCandidate(candidate));
             console.log("Added ICE candidate from", fromId);
           } catch (err) {
@@ -304,40 +208,13 @@ export function useVideoRoom({
         }
       });
 
-      // 🔥 Only ONE side should be caller to avoid glare
-      // Decide caller deterministically: smallest userId in students
-      const sorted = [...students].filter(Boolean).sort();
-      const leaderId = sorted[0];
-      const amICaller = leaderId === userId;
-
-      console.log("Caller decision:", {
-        students,
-        sorted,
-        leaderId,
-        userId,
-        amICaller,
-      });
-
+      // Caller creates offers
       const initOffers = async () => {
-        if (!amICaller) {
-          console.log("Not caller, skipping offer creation");
-          return;
-        }
+        if (!amICaller) return;
 
         for (const peerId of peerIds) {
           const pc = createPeerConnection(peerId);
-
-          if (pc.signalingState !== "stable") {
-            console.warn(
-              "Skipping offer to",
-              peerId,
-              "because signalingState is",
-              pc.signalingState
-            );
-            continue;
-          }
-
-          console.log("Creating offer to", peerId);
+          if (pc.signalingState !== "stable") continue;
 
           try {
             const offer = await pc.createOffer();
@@ -363,36 +240,24 @@ export function useVideoRoom({
       initOffers();
     };
 
-    // Wait for local stream to be ready
+    // Wait for local stream
     if (!streamRef.current) {
-      console.warn(
-        "useVideoRoom: local stream not ready yet, starting watcher"
-      );
       streamCheckInterval = setInterval(() => {
         if (streamRef.current) {
-          console.log(
-            "useVideoRoom: local stream is now ready, initializing"
-          );
           clearInterval(streamCheckInterval);
           streamCheckInterval = null;
           setupSignaling();
         }
       }, 500);
     } else {
-      console.log(
-        "useVideoRoom: local stream already ready, initializing immediately"
-      );
       setupSignaling();
     }
 
     return () => {
-      console.log("Cleaning up useVideoRoom listeners");
-      if (streamCheckInterval) {
-        clearInterval(streamCheckInterval);
-      }
+      if (streamCheckInterval) clearInterval(streamCheckInterval);
       if (offersUnsub) offersUnsub();
       if (answersUnsub) answersUnsub();
       if (candidatesUnsub) candidatesUnsub();
     };
-  }, [roomId, userId]); // ✅ sirf roomId + userId
+  }, [roomId, userId]);
 }
