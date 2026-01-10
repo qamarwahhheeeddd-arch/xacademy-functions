@@ -21,17 +21,32 @@ export function useVideoRoom({
   students = [],
 }) {
   useEffect(() => {
-    if (!roomId || !userId) return;
+    if (!roomId || !userId) {
+      console.warn("useVideoRoom: missing roomId or userId");
+      return;
+    }
+
     if (!streamRef.current) {
       console.warn("useVideoRoom: local stream not ready yet");
       return;
     }
+
     if (!Array.isArray(students) || students.length === 0) {
       console.warn("useVideoRoom: no students list, skipping");
       return;
     }
 
-    console.log("useVideoRoom: starting for", { roomId, userId, students });
+    const peerIds = students.filter((id) => id && id !== userId);
+    if (peerIds.length === 0) {
+      console.warn("useVideoRoom: no valid peers to connect to");
+      return;
+    }
+
+    console.log("useVideoRoom: starting for", {
+      roomId,
+      userId,
+      peers: peerIds,
+    });
 
     const roomRef = doc(db, "examRooms", roomId);
     const offersCol = collection(roomRef, "webrtcOffers");
@@ -49,12 +64,14 @@ export function useVideoRoom({
 
       peersRef.current[peerId] = pc;
 
+      // Attach local tracks
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => {
           pc.addTrack(track, streamRef.current);
         });
       }
 
+      // Remote tracks
       pc.ontrack = (event) => {
         const [remoteStream] = event.streams;
         if (remoteStream) {
@@ -63,13 +80,19 @@ export function useVideoRoom({
         }
       };
 
+      // ICE candidates → Firestore
       pc.onicecandidate = async (event) => {
         if (!event.candidate) return;
         try {
+          const c = event.candidate;
           await addDoc(candidatesCol, {
             from: userId,
             to: peerId,
-            candidate: event.candidate.toJSON(),
+            candidate: {
+              candidate: c.candidate,
+              sdpMid: c.sdpMid,
+              sdpMLineIndex: c.sdpMLineIndex,
+            },
             createdAt: serverTimestamp(),
           });
         } catch (err) {
@@ -81,7 +104,8 @@ export function useVideoRoom({
         console.log("Connection state with", peerId, "=>", pc.connectionState);
         if (
           pc.connectionState === "disconnected" ||
-          pc.connectionState === "failed"
+          pc.connectionState === "failed" ||
+          pc.connectionState === "closed"
         ) {
           pc.close();
           delete peersRef.current[peerId];
@@ -92,82 +116,118 @@ export function useVideoRoom({
       return pc;
     };
 
+    // Listen for offers TO me
     const offersQ = query(offersCol, where("to", "==", userId));
     const unsubOffers = onSnapshot(offersQ, async (snap) => {
-      for (const docChange of snap.docChanges()) {
-        if (docChange.type !== "added") continue;
-        const data = docChange.doc.data();
+      for (const change of snap.docChanges()) {
+        if (change.type !== "added") continue;
+        const data = change.doc.data();
         const fromId = data.from;
         const offer = data.offer;
+
+        if (!offer || !offer.type || !offer.sdp) {
+          console.warn("Invalid offer data from", fromId, offer);
+          continue;
+        }
 
         console.log("Received offer from", fromId);
 
         const pc = createPeerConnection(fromId);
 
         try {
-          await pc.setRemoteDescription(new RTCSessionDescription(offer));
+          await pc.setRemoteDescription(
+            new RTCSessionDescription({
+              type: offer.type,
+              sdp: offer.sdp,
+            })
+          );
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
 
           await addDoc(answersCol, {
             from: userId,
             to: fromId,
-            answer: answer.toJSON(),
+            answer: {
+              type: answer.type,
+              sdp: answer.sdp,
+            },
             createdAt: serverTimestamp(),
           });
 
           console.log("Sent answer to", fromId);
         } catch (err) {
-          console.error("Error handling offer:", err);
+          console.error("Error handling offer from", fromId, err);
         }
       }
     });
 
+    // Listen for answers TO me
     const answersQ = query(answersCol, where("to", "==", userId));
     const unsubAnswers = onSnapshot(answersQ, async (snap) => {
-      for (const docChange of snap.docChanges()) {
-        if (docChange.type !== "added") continue;
-        const data = docChange.doc.data();
+      for (const change of snap.docChanges()) {
+        if (change.type !== "added") continue;
+        const data = change.doc.data();
         const fromId = data.from;
         const answer = data.answer;
+
+        if (!answer || !answer.type || !answer.sdp) {
+          console.warn("Invalid answer data from", fromId, answer);
+          continue;
+        }
 
         console.log("Received answer from", fromId);
 
         const pc = peersRef.current[fromId];
-        if (!pc) continue;
+        if (!pc) {
+          console.warn("No peerConnection for", fromId);
+          continue;
+        }
 
         try {
-          await pc.setRemoteDescription(new RTCSessionDescription(answer));
+          await pc.setRemoteDescription(
+            new RTCSessionDescription({
+              type: answer.type,
+              sdp: answer.sdp,
+            })
+          );
         } catch (err) {
-          console.error("Error setting remote answer:", err);
+          console.error("Error setting remote answer from", fromId, err);
         }
       }
     });
 
+    // Listen for ICE candidates TO me
     const candidatesQ = query(candidatesCol, where("to", "==", userId));
     const unsubCandidates = onSnapshot(candidatesQ, async (snap) => {
-      for (const docChange of snap.docChanges()) {
-        if (docChange.type !== "added") continue;
-        const data = docChange.doc.data();
+      for (const change of snap.docChanges()) {
+        if (change.type !== "added") continue;
+        const data = change.doc.data();
         const fromId = data.from;
         const candidate = data.candidate;
 
         const pc = peersRef.current[fromId];
-        if (!pc) continue;
+        if (!pc) {
+          console.warn("No peerConnection for ICE from", fromId);
+          continue;
+        }
+
+        if (!candidate || !candidate.candidate) {
+          console.warn("Invalid ICE candidate from", fromId, candidate);
+          continue;
+        }
 
         try {
           await pc.addIceCandidate(new RTCIceCandidate(candidate));
           console.log("Added ICE candidate from", fromId);
         } catch (err) {
-          console.error("Error adding ICE candidate:", err);
+          console.error("Error adding ICE candidate from", fromId, err);
         }
       }
     });
 
+    // Create offers FROM me → others
     const initOffers = async () => {
-      for (const peerId of students) {
-        if (!peerId || peerId === userId) continue;
-
+      for (const peerId of peerIds) {
         console.log("Creating offer to", peerId);
 
         const pc = createPeerConnection(peerId);
@@ -179,7 +239,10 @@ export function useVideoRoom({
           await addDoc(offersCol, {
             from: userId,
             to: peerId,
-            offer: offer.toJSON(),
+            offer: {
+              type: offer.type,
+              sdp: offer.sdp,
+            },
             createdAt: serverTimestamp(),
           });
 
@@ -198,5 +261,13 @@ export function useVideoRoom({
       unsubAnswers();
       unsubCandidates();
     };
-  }, [roomId, userId, streamRef, peersRef, addRemoteStream, removeRemoteStream, students]);
+  }, [
+    roomId,
+    userId,
+    streamRef,
+    peersRef,
+    addRemoteStream,
+    removeRemoteStream,
+    JSON.stringify(students),
+  ]);
 }
