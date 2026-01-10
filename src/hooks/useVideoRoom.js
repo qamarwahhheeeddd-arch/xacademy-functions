@@ -244,10 +244,8 @@ export function useVideoRoom({
       }
     });
 
-    // Only one side should create offers (simple deterministic caller)
-    const amICaller =
-      peerIds.length > 0 &&
-      userId === [...peerIds].sort()[0];
+   // TEMP: Always be caller if any peers exist
+const amICaller = peerIds.length > 0;
 
     // Create offers FROM me → others
     const initOffers = async () => {
