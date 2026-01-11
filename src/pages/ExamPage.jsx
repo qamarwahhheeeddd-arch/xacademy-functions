@@ -1,18 +1,12 @@
 // src/pages/ExamPage.jsx
-import useVideoRoom from "../hooks/useVideoRoom";
-
-import React, {
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { doc, onSnapshot, updateDoc, runTransaction } from "firebase/firestore";
 import { db } from "../firebase";
 
 import ExamUI from "../components/ExamUI";
 import BreakScreen from "../components/BreakScreen";
-import { useCamera } from "../hooks/useCamera";
+import useVideoRoom from "../hooks/useVideoRoom";
 
 import { medBiologyB1 } from "../Paper data/Medical paper/Biology/B1";
 import { medBiologyB2 } from "../Paper data/Medical paper/Biology/B2";
@@ -112,23 +106,10 @@ export default function ExamPage() {
 
   const userId = getOrCreateUserId();
 
-  // Local camera only (UI stays same)
-  const { videoRef } = useCamera(() => {});
+  // Multi‑peer WebRTC + TURN (local + remote video)
+  const { start, localVideoRef, remoteStreams } = useVideoRoom();
 
-  // WebRTC + TURN (remote video)
-  const {
-    start,
-    localVideoRef,
-    remoteVideoRef,
-    connected,
-  } = useVideoRoom();
-
-  useEffect(() => {
-    if (roomId) {
-      start(roomId);
-    }
-  }, [roomId]);
-
+  // Questions & exam state
   const [questions, setQuestions] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState(null);
@@ -145,43 +126,93 @@ export default function ExamPage() {
   const [showEndOverlay, setShowEndOverlay] = useState(false);
 
   const hasSubmittedRef = useRef(false);
-
   const [roomData, setRoomData] = useState(null);
 
+  // Start WebRTC when roomId available
+  useEffect(() => {
+    if (roomId && userId) {
+      start(roomId, userId);
+    }
+  }, [roomId, userId, start]);
+
+  // Build question sequence
   useEffect(() => {
     let examSeq = [];
 
     if (paperType === "medical") {
       const medSets = [
-        medBiologyB1, medBiologyB2, medBiologyB3, medBiologyB4, medBiologyB5,
-        medChemistryCh1, medChemistryCh2, medChemistryCh3, medChemistryCh4, medChemistryCh5,
-        medEnglishE1, medEnglishE2, medEnglishE3, medEnglishE4, medEnglishE5,
-        medPhysicsP1, medPhysicsP2, medPhysicsP3, medPhysicsP4, medPhysicsP5,
+        medBiologyB1,
+        medBiologyB2,
+        medBiologyB3,
+        medBiologyB4,
+        medBiologyB5,
+        medChemistryCh1,
+        medChemistryCh2,
+        medChemistryCh3,
+        medChemistryCh4,
+        medChemistryCh5,
+        medEnglishE1,
+        medEnglishE2,
+        medEnglishE3,
+        medEnglishE4,
+        medEnglishE5,
+        medPhysicsP1,
+        medPhysicsP2,
+        medPhysicsP3,
+        medPhysicsP4,
+        medPhysicsP5,
       ];
 
-      const medNewsSets = [medNewsN1, medNewsN2, medNewsN3, medNewsN4, medNewsN5];
+      const medNewsSets = [
+        medNewsN1,
+        medNewsN2,
+        medNewsN3,
+        medNewsN4,
+        medNewsN5,
+      ];
 
-      medSets.forEach(set => examSeq = examSeq.concat(pickRandomFive(set)));
-      medNewsSets.forEach(set => examSeq = examSeq.concat(pickRandomFive(set)));
+      medSets.forEach((set) => (examSeq = examSeq.concat(pickRandomFive(set))));
+      medNewsSets.forEach(
+        (set) => (examSeq = examSeq.concat(pickRandomFive(set)))
+      );
     }
 
     if (paperType === "engineering") {
       const engSets = [
-        engEnglishE1, engEnglishE2, engEnglishE3, engEnglishE4, engEnglishE5,
-        engComputerC1, engComputerC2, engComputerC3, engComputerC4, engComputerC5,
-        engMathM1, engMathM2, engMathM3, engMathM4, engMathM5,
-        engPhysicsP1, engPhysicsP2, engPhysicsP3, engPhysicsP4, engPhysicsP5,
+        engEnglishE1,
+        engEnglishE2,
+        engEnglishE3,
+        engEnglishE4,
+        engEnglishE5,
+        engComputerC1,
+        engComputerC2,
+        engComputerC3,
+        engComputerC4,
+        engComputerC5,
+        engMathM1,
+        engMathM2,
+        engMathM3,
+        engMathM4,
+        engMathM5,
+        engPhysicsP1,
+        engPhysicsP2,
+        engPhysicsP3,
+        engPhysicsP4,
+        engPhysicsP5,
       ];
 
       const engNewsSets = [engNewsN1, engNewsN2, engNewsN3, engNewsN4, engNewsN5];
 
-      engSets.forEach(set => examSeq = examSeq.concat(pickRandomFive(set)));
-      engNewsSets.forEach(set => examSeq = examSeq.concat(pickRandomFive(set)));
+      engSets.forEach((set) => (examSeq = examSeq.concat(pickRandomFive(set))));
+      engNewsSets.forEach(
+        (set) => (examSeq = examSeq.concat(pickRandomFive(set)))
+      );
     }
 
     setQuestions(examSeq);
   }, [paperType]);
 
+  // Room listener (Firestore)
   useEffect(() => {
     if (!roomId) return;
 
@@ -216,6 +247,7 @@ export default function ExamPage() {
       : initialStudents
     ).filter(Boolean);
 
+  // Question countdown
   useEffect(() => {
     if (breakActive || examEnded) return;
     if (questionTimer <= 0) return;
@@ -237,9 +269,7 @@ export default function ExamPage() {
     setSelectedOption(option);
 
     const correct =
-      currentQ.correctAnswer ??
-      currentQ.correctOption ??
-      currentQ.answer;
+      currentQ.correctAnswer ?? currentQ.correctOption ?? currentQ.answer;
 
     if (option === correct) {
       setScore((s) => s + 1);
@@ -258,6 +288,7 @@ export default function ExamPage() {
     });
   }
 
+  // Leader advances question
   useEffect(() => {
     if (!roomData || !roomId || examEnded) return;
     if (!roomData.students || !Array.isArray(roomData.students)) return;
@@ -316,6 +347,7 @@ export default function ExamPage() {
     });
   }
 
+  // Break timer
   useEffect(() => {
     if (!breakActive) return;
     if (breakTimer <= 0) {
@@ -354,7 +386,9 @@ export default function ExamPage() {
   }
 
   if (!questions[currentIndex]) {
-    return <div style={{ color: "white", padding: 20 }}>Loading question...</div>;
+    return (
+      <div style={{ color: "white", padding: 20 }}>Loading question...</div>
+    );
   }
 
   const currentQ = questions[currentIndex];
@@ -370,8 +404,10 @@ export default function ExamPage() {
       ) : (
         <ExamUI
           videoRef={localVideoRef}
-          remoteVideoRef={remoteVideoRef}
+          remoteStreams={remoteStreams}
           hearts={hearts}
+          warnings={0}
+          maxWarnings={999}
           question={currentQ.question}
           currentIndex={currentIndex}
           totalQuestions={questions.length}
@@ -382,6 +418,8 @@ export default function ExamPage() {
           questionTimer={questionTimer}
           showEndOverlay={showEndOverlay}
           endMessage={endMessage}
+          breakActive={breakActive}
+          breakTimer={breakTimer}
         />
       )}
     </>
