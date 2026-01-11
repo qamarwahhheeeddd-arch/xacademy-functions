@@ -1,3 +1,4 @@
+// src/services/examRoomService.js
 import { getFirestore, doc, onSnapshot } from "firebase/firestore";
 import { app } from "../firebase";
 
@@ -23,12 +24,11 @@ export async function joinExamRoom(paperType, studentId, mode) {
 
     const data = await res.json();
 
-    if (!data.success) {
+    if (!data.success || !data.roomId) {
       throw new Error(data.error || "Failed to join room");
     }
 
     return data.roomId;
-
   } catch (err) {
     console.error("joinExamRoom error:", err);
     throw err;

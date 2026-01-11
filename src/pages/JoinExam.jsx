@@ -1,3 +1,4 @@
+// src/pages/JoinExam.jsx
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { joinExamRoom } from "../services/examRoomService";
@@ -6,8 +7,11 @@ export default function JoinExam() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const paperType = location.state?.paperType || localStorage.getItem("paperType");
-  const mode = Number(location.state?.mode || localStorage.getItem("mode"));
+  const paperType =
+    location.state?.paperType || localStorage.getItem("paperType");
+  const mode = Number(
+    location.state?.mode || localStorage.getItem("mode")
+  );
 
   const [loading, setLoading] = useState(true);
 
@@ -38,7 +42,7 @@ export default function JoinExam() {
         console.log("🚀 DEBUG: Calling joinExamRoom with:", {
           paperType,
           userId,
-          mode
+          mode,
         });
 
         const roomId = await joinExamRoom(paperType, userId, mode);
@@ -46,13 +50,14 @@ export default function JoinExam() {
         console.log("✅ DEBUG: Room joined successfully:", roomId);
 
         navigate("/waiting", {
-          state: { roomId, paperType, mode }
+          state: { roomId, paperType, mode },
         });
-
       } catch (err) {
         console.error("❌ DEBUG: joinExamRoom error:", err);
         alert("Error joining room");
         navigate("/");
+      } finally {
+        setLoading(false);
       }
     }
 
@@ -68,10 +73,10 @@ export default function JoinExam() {
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
-        fontSize: 20
+        fontSize: 20,
       }}
     >
-      Joining exam room...
+      {loading ? "Joining exam room..." : "Redirecting..."}
     </div>
   );
 }

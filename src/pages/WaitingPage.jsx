@@ -35,9 +35,10 @@ export default function WaitingPage() {
 
       setStudents(list);
       setStudentsCount(list.length);
-      setStatus(data.status);
+      setStatus(data.status || "waiting");
 
-      if (data.status === "started" && list.length === mode) {
+      // FIX: Prevent double navigation
+      if (data.status === "started" && list.length >= mode) {
         navigate("/exam", {
           state: {
             roomId,
