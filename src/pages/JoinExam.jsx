@@ -1,6 +1,6 @@
 // src/pages/JoinExamPage.jsx
 import React, { useEffect, useState } from "react";
-import { joinExamRoom } from "../services/examService";
+import { joinExamRoom } from "../services/examRoomService";
 import useVideoRoom from "../hooks/useVideoRoom";
 
 export default function JoinExamPage() {
