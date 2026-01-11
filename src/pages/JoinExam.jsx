@@ -1,43 +1,77 @@
-// src/pages/JoinExamPage.jsx
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { joinExamRoom } from "../services/examRoomService";
-import useVideoRoom from "../hooks/useVideoRoom";
 
-export default function JoinExamPage() {
-  const [roomId, setRoomId] = useState(null);
-  const [localVideoRef, remoteVideoRef, start] = useVideoRoom();
+export default function JoinExam() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const paperType = location.state?.paperType || localStorage.getItem("paperType");
+  const mode = Number(location.state?.mode || localStorage.getItem("mode"));
+
+  const [loading, setLoading] = useState(true);
+
+  function getOrCreateUserId() {
+    let id = localStorage.getItem("examUserId");
+    if (!id) {
+      id = "user_" + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem("examUserId", id);
+    }
+    return id;
+  }
 
   useEffect(() => {
-    async function init() {
-      console.log("🔍 DEBUG: JoinExam mounted");
+    console.log("🔍 DEBUG: JoinExam mounted");
+    console.log("🔍 DEBUG: Received state:", { paperType, mode });
 
-      const state = { paperType: "medical", mode: 2 };
-      console.log("🔍 DEBUG: Received state:", state);
-
-      const userId = "user_" + Math.random().toString(36).substring(2, 10);
-      console.log("🔍 DEBUG: Generated userId:", userId);
-
-      const result = await joinExamRoom({
-        paperType: state.paperType,
-        userId,
-        mode: state.mode,
-      });
-
-      console.log("🚀 DEBUG: Room joined successfully:", result.roomId);
-
-      setRoomId(result.roomId);
-      start(result.roomId); // IMPORTANT FIX
+    if (!paperType || !mode || isNaN(mode)) {
+      console.log("❌ DEBUG: Missing paperType or mode → redirecting home");
+      navigate("/");
+      return;
     }
 
-    init();
+    async function joinRoom() {
+      try {
+        const userId = getOrCreateUserId();
+        console.log("🔍 DEBUG: Generated userId:", userId);
+
+        console.log("🚀 DEBUG: Calling joinExamRoom with:", {
+          paperType,
+          userId,
+          mode
+        });
+
+        const roomId = await joinExamRoom(paperType, userId, mode);
+
+        console.log("✅ DEBUG: Room joined successfully:", roomId);
+
+        navigate("/waiting", {
+          state: { roomId, paperType, mode }
+        });
+
+      } catch (err) {
+        console.error("❌ DEBUG: joinExamRoom error:", err);
+        alert("Error joining room");
+        navigate("/");
+      }
+    }
+
+    joinRoom();
   }, []);
 
   return (
-    <div>
-      <h1>Exam Page</h1>
-
-      <video ref={localVideoRef} autoPlay muted playsInline />
-      <video ref={remoteVideoRef} autoPlay playsInline />
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#000",
+        color: "white",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        fontSize: 20
+      }}
+    >
+      Joining exam room...
     </div>
   );
 }
