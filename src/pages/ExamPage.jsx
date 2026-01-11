@@ -1,5 +1,5 @@
 // src/pages/ExamPage.jsx
-import  useVideoRoom  from "../hooks/useVideoRoom";
+import useVideoRoom from "../hooks/useVideoRoom";
 
 import React, {
   useEffect,
@@ -112,16 +112,22 @@ export default function ExamPage() {
 
   const userId = getOrCreateUserId();
 
+  // Local camera only (UI stays same)
+  const { videoRef } = useCamera(() => {});
+
+  // WebRTC + TURN (remote video)
   const {
-    videoRef,
-    streamRef,
-    remoteStreams,
-    peersRef,
-    addRemoteStream,
-    removeRemoteStream,
-    restartCamera,
-  } = useCamera(() => {});
-  const cameraReady = !!streamRef.current;
+    start,
+    localVideoRef,
+    remoteVideoRef,
+    connected,
+  } = useVideoRoom();
+
+  useEffect(() => {
+    if (roomId) {
+      start(roomId);
+    }
+  }, [roomId]);
 
   const [questions, setQuestions] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -209,17 +215,6 @@ export default function ExamPage() {
       ? roomData.students
       : initialStudents
     ).filter(Boolean);
-
-  useVideoRoom({
-    roomId,
-    userId,
-    streamRef,
-    peersRef,
-    addRemoteStream,
-    removeRemoteStream,
-    students: effectiveStudents,
-    cameraReady, // ⭐ NEW
-  });
 
   useEffect(() => {
     if (breakActive || examEnded) return;
@@ -325,7 +320,6 @@ export default function ExamPage() {
     if (!breakActive) return;
     if (breakTimer <= 0) {
       setBreakActive(false);
-      restartCamera();
       return;
     }
 
@@ -334,17 +328,13 @@ export default function ExamPage() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [breakActive, breakTimer, restartCamera]);
+  }, [breakActive, breakTimer]);
 
   function endExam(reason) {
     if (hasSubmittedRef.current) return;
     hasSubmittedRef.current = true;
 
     setExamEnded(true);
-
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-    }
 
     let msg = "";
     if (reason === "warnings") msg = "Go and Be Honest";
@@ -379,8 +369,8 @@ export default function ExamPage() {
         />
       ) : (
         <ExamUI
-          videoRef={videoRef}
-          remoteStreams={remoteStreams}
+          videoRef={localVideoRef}
+          remoteVideoRef={remoteVideoRef}
           hearts={hearts}
           question={currentQ.question}
           currentIndex={currentIndex}

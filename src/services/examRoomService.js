@@ -19,12 +19,20 @@ export async function joinExamRoom(paperType, studentId, mode) {
     );
 
     if (!res.ok) {
+      console.error("❌ joinExamRoom HTTP error:", res.status);
       throw new Error("Network error while joining room");
     }
 
-    const data = await res.json();
+    let data;
+    try {
+      data = await res.json();
+    } catch (e) {
+      console.error("❌ joinExamRoom JSON parse error:", e);
+      throw new Error("Invalid server response");
+    }
 
     if (!data.success || !data.roomId) {
+      console.error("❌ joinExamRoom backend error:", data);
       throw new Error(data.error || "Failed to join room");
     }
 
@@ -39,6 +47,12 @@ export async function joinExamRoom(paperType, studentId, mode) {
 //  LISTEN ROOM (Firestore listener)
 // ===============================
 export function listenExamRoom(roomId, callback) {
+  if (!roomId) {
+    console.error("listenExamRoom called without roomId");
+    callback(null);
+    return () => {};
+  }
+
   const ref = doc(db, "examRooms", roomId);
 
   return onSnapshot(
@@ -48,7 +62,9 @@ export function listenExamRoom(roomId, callback) {
         callback(null);
         return;
       }
-      callback(snap.data());
+
+      const data = snap.data() || {};
+      callback(data);
     },
     (error) => {
       console.error("listenExamRoom error:", error);

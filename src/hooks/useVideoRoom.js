@@ -7,6 +7,7 @@ export default function useVideoRoom() {
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const [connected, setConnected] = useState(false);
+  const startedRef = useRef(false);
 
   // Helper: safely send JSON over WebSocket
   const sendSignal = (msg) => {
@@ -14,18 +15,26 @@ export default function useVideoRoom() {
       console.warn("WS not ready, dropping message:", msg);
       return;
     }
-    wsRef.current.send(JSON.stringify(msg));
+    try {
+      wsRef.current.send(JSON.stringify(msg));
+    } catch (e) {
+      console.error("WS send error:", e);
+    }
   };
 
+  // Cleanup on unmount
   useEffect(() => {
-    // cleanup on unmount
     return () => {
       try {
         wsRef.current?.close();
-      } catch (e) {}
+      } catch (e) {
+        console.error("WS close error:", e);
+      }
       try {
         pcRef.current?.close();
-      } catch (e) {}
+      } catch (e) {
+        console.error("PC close error:", e);
+      }
     };
   }, []);
 
@@ -36,12 +45,22 @@ export default function useVideoRoom() {
       return;
     }
 
+    if (startedRef.current) {
+      console.log("⚠️ useVideoRoom.start called again, ignoring");
+      return;
+    }
+    startedRef.current = true;
+
     // 1) Setup WebSocket
     wsRef.current = new WebSocket(
       `wss://xacademy-functions.web.app/ws?roomId=${encodeURIComponent(
         roomId
       )}`
     );
+
+    wsRef.current.onclose = (ev) => {
+      console.log("WS closed:", ev.code, ev.reason || "");
+    };
 
     await new Promise((resolve, reject) => {
       wsRef.current.onopen = () => {
@@ -77,6 +96,14 @@ export default function useVideoRoom() {
       const state = pcRef.current.connectionState;
       console.log("🔁 PC state:", state);
       setConnected(state === "connected");
+
+      if (
+        state === "failed" ||
+        state === "disconnected" ||
+        state === "closed"
+      ) {
+        // optional: you could try to restart here
+      }
     };
 
     pcRef.current.ontrack = (e) => {
@@ -88,40 +115,53 @@ export default function useVideoRoom() {
 
     // 3) Setup WebSocket message handler (after pcRef exists)
     wsRef.current.onmessage = async (msg) => {
-      const data = JSON.parse(msg.data);
+      let data;
+      try {
+        data = JSON.parse(msg.data);
+      } catch (e) {
+        console.error("WS message JSON parse error:", e, msg.data);
+        return;
+      }
+
       console.log("📩 WS message:", data);
 
       if (!pcRef.current) return;
 
-      if (data.answer) {
-        await pcRef.current.setRemoteDescription(
-          new RTCSessionDescription(data.answer)
-        );
-      }
-
-      if (data.offer) {
-        await pcRef.current.setRemoteDescription(
-          new RTCSessionDescription(data.offer)
-        );
-        const answer = await pcRef.current.createAnswer();
-        await pcRef.current.setLocalDescription(answer);
-        sendSignal({ answer });
-      }
-
-      if (data.iceCandidate) {
-        try {
-          await pcRef.current.addIceCandidate(data.iceCandidate);
-        } catch (err) {
-          console.error("ICE candidate error:", err);
+      try {
+        if (data.answer) {
+          await pcRef.current.setRemoteDescription(
+            new RTCSessionDescription(data.answer)
+          );
         }
+
+        if (data.offer) {
+          await pcRef.current.setRemoteDescription(
+            new RTCSessionDescription(data.offer)
+          );
+          const answer = await pcRef.current.createAnswer();
+          await pcRef.current.setLocalDescription(answer);
+          sendSignal({ answer });
+        }
+
+        if (data.iceCandidate) {
+          await pcRef.current.addIceCandidate(data.iceCandidate);
+        }
+      } catch (err) {
+        console.error("Signaling handling error:", err, data);
       }
     };
 
     // 4) Get local media
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: true,
-      audio: true,
-    });
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true,
+      });
+    } catch (err) {
+      console.error("Media error:", err);
+      return;
+    }
 
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = stream;
@@ -132,11 +172,14 @@ export default function useVideoRoom() {
     });
 
     // 5) Create and send offer
-    const offer = await pcRef.current.createOffer();
-    await pcRef.current.setLocalDescription(offer);
-    sendSignal({ offer });
-
-    console.log("🚀 Offer sent");
+    try {
+      const offer = await pcRef.current.createOffer();
+      await pcRef.current.setLocalDescription(offer);
+      sendSignal({ offer });
+      console.log("🚀 Offer sent");
+    } catch (err) {
+      console.error("Offer/description error:", err);
+    }
   };
 
   return {

@@ -1,5 +1,5 @@
 // src/pages/WaitingPage.jsx
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase";
@@ -16,6 +16,9 @@ export default function WaitingPage() {
   const [status, setStatus] = useState("waiting");
   const [students, setStudents] = useState([]);
 
+  // prevent multiple navigations if snapshots fire fast
+  const navigatedRef = useRef(false);
+
   useEffect(() => {
     if (!roomId || !paperType || !mode || isNaN(mode)) {
       navigate("/");
@@ -24,31 +27,41 @@ export default function WaitingPage() {
 
     const ref = doc(db, "examRooms", roomId);
 
-    const unsub = onSnapshot(ref, (snap) => {
-      if (!snap.exists()) return;
+    const unsub = onSnapshot(
+      ref,
+      (snap) => {
+        if (!snap.exists()) return;
 
-      const data = snap.data();
+        const data = snap.data() || {};
 
-      const list = Array.isArray(data.students)
-        ? data.students.filter(Boolean)
-        : [];
+        const list = Array.isArray(data.students)
+          ? data.students.filter(Boolean)
+          : [];
 
-      setStudents(list);
-      setStudentsCount(list.length);
-      setStatus(data.status || "waiting");
+        setStudents(list);
+        setStudentsCount(list.length);
+        setStatus(data.status || "waiting");
 
-      // FIX: Prevent double navigation
-      if (data.status === "started" && list.length >= mode) {
-        navigate("/exam", {
-          state: {
-            roomId,
-            paperType,
-            mode,
-            students: list,
-          },
-        });
+        if (
+          !navigatedRef.current &&
+          data.status === "started" &&
+          list.length >= mode
+        ) {
+          navigatedRef.current = true;
+          navigate("/exam", {
+            state: {
+              roomId,
+              paperType,
+              mode,
+              students: list,
+            },
+          });
+        }
+      },
+      (error) => {
+        console.error("WaitingPage onSnapshot error:", error);
       }
-    });
+    );
 
     return () => unsub();
   }, [roomId, paperType, mode, navigate]);
